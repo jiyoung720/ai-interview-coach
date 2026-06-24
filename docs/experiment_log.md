@@ -14,3 +14,17 @@
 
 ### 결론
 **Chunk는 주제 하나당 짧고 포커스 있게 유지해야 한다.** 혼합 주제 chunk는 의도와 다르게 부풀려진 유사도 점수를 받을 수 있음. Interview KB(`jwt.md`, `fastapi.md` 등) 작성 시 이 원칙 적용.
+
+## 2026-06-24 — Chain A Faithfulness 이슈 발견
+
+### 가설
+Retriever가 적절한 문서를 검색해오면, Chain A가 생성하는 질문도 항상 그 문서 내용에 근거할 것이다.
+
+### 방법
+`POST /generate-question`으로 실제 README 기반 면접 질문 5개 생성 후, 각 질문이 원문에 근거하는지 확인.
+
+### 결과
+5개 중 4개는 원문(FastAPI, JWT, bcrypt, PostgreSQL, RAG 청킹)에 정확히 근거했으나, 1개는 latency/SSE·WebSocket/Celery 관련 질문으로 원문에 전혀 없는 내용이었음.
+
+### 결론
+**Retriever 성공 ≠ Faithfulness 보장.** 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. Day 4 RAGAS 평가에 Faithfulness를 포함시켜야 하는 근거가 됨.
