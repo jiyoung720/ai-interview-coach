@@ -13,7 +13,13 @@
 - 다만 여러 주제가 섞인 긴 chunk(README 전체)가, 주제 하나로 깨끗한 짧은 chunk(doc_auth)보다 더 높은 유사도를 받는 경우가 있었음.
 
 ### 결론
-**Chunk는 주제 하나당 짧고 포커스 있게 유지해야 한다.** 혼합 주제 chunk는 의도와 다르게 부풀려진 유사도 점수를 받을 수 있음. Interview KB(`jwt.md`, `fastapi.md` 등) 작성 시 이 원칙 적용.
+**Chunk는 주제 하나당 짧고 포커스 있게 유지해야 한다.** 혼합 주제 chunk는 의도와 다르게 부풀려진 유사도 점수를 받을 수 있음.
+
+### Action Item
+- Interview KB(`jwt.md`, `fastapi.md` 등)는 파일당 주제 하나로 작성
+- Collection 1(User Docs)은 실사용 시 이력서/포트폴리오가 길어지면 자연히 여러 chunk로 쪼개지므로 별도 조치 불필요
+
+---
 
 ## 2026-06-24 — Chain A Faithfulness 이슈 발견
 
@@ -27,4 +33,8 @@ Retriever가 적절한 문서를 검색해오면, Chain A가 생성하는 질문
 5개 중 4개는 원문(FastAPI, JWT, bcrypt, PostgreSQL, RAG 청킹)에 정확히 근거했으나, 1개는 latency/SSE·WebSocket/Celery 관련 질문으로 원문에 전혀 없는 내용이었음.
 
 ### 결론
-**Retriever 성공 ≠ Faithfulness 보장.** 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. Day 4 RAGAS 평가에 Faithfulness를 포함시켜야 하는 근거가 됨.
+**Retriever 성공 ≠ Faithfulness 보장.** 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인.
+
+### Action Item
+- Day 4 RAGAS 평가에 Faithfulness를 반드시 포함
+- Chain B Judge 설계 시에도 KB 범위를 벗어난 응답을 생성하지 않는지 동일한 관점으로 점검
