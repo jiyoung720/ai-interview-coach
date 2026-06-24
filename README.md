@@ -86,11 +86,11 @@ flowchart LR
 - [x] Structured Output으로 응답 형식 고정 (`InterviewQuestions`)
 - [x] `POST /generate-question` 엔드포인트
 
-### Phase 3 — Answer Evaluation (진행 중)
-- [ ] Interview KB 구축 (`jwt.md`, `fastapi.md` 최소 구성)
-- [ ] Chain B (Gemini Judge 기반 답변 평가)
-- [ ] `POST /evaluate-answer` 엔드포인트
-- [ ] Judge Calibration Set
+### Phase 3 — Answer Evaluation (거의 완료)
+- [x] Interview KB 구축 (`jwt.md`, `fastapi.md` 최소 구성)
+- [x] Chain B (Gemini Judge 기반 답변 평가, retrieved_sources 포함)
+- [x] `POST /evaluate-answer` 엔드포인트
+- [ ] Judge Calibration 자동화 (17개 셋, 수동 검증 1건만 완료)
 
 ### Phase 4 — Evaluation
 - [ ] RAGAS (Faithfulness, Context Precision)
