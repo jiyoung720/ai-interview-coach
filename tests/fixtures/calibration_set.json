@@ -3,102 +3,255 @@
     "question": "JWT란 무엇인가?",
     "answer": "모르겠습니다.",
     "answer_level": "bad",
-    "expected": { "technical_score": [0, 2], "completeness_score": [0, 2] }
+    "expected": {
+      "technical_score": [
+        0,
+        2
+      ],
+      "completeness_score": [
+        0,
+        2
+      ]
+    }
   },
   {
     "question": "JWT란 무엇인가?",
-    "answer": "JWT는 토큰입니다. 사용자 인증에 씁니다.",
+    "answer": "JWT는 세션 대신 쓰는 건데, 서버에 로그인 정보를 저장해두는 방식입니다.",
     "answer_level": "average",
-    "expected": { "technical_score": [4, 7], "completeness_score": [4, 7] }
+    "expected": {
+      "technical_score": [
+        2,
+        5
+      ],
+      "completeness_score": [
+        2,
+        5
+      ]
+    }
   },
   {
     "question": "JWT란 무엇인가?",
     "answer": "JWT는 사용자 인증 정보를 안전하게 전달하기 위한 토큰 기반 인증 방식으로, Header, Payload, Signature로 구성되며 서버가 별도 세션 저장소 없이 서명을 검증해 사용자를 인증할 수 있습니다.",
     "answer_level": "good",
-    "expected": { "technical_score": [8, 10], "completeness_score": [8, 10] }
+    "expected": {
+      "technical_score": [
+        8,
+        10
+      ],
+      "completeness_score": [
+        8,
+        10
+      ]
+    }
   },
   {
     "question": "Access Token과 Refresh Token의 차이를 설명해주세요.",
     "answer": "둘 다 토큰이라 비슷합니다.",
     "answer_level": "bad",
-    "expected": { "technical_score": [0, 2], "completeness_score": [0, 2] }
+    "expected": {
+      "technical_score": [
+        0,
+        2
+      ],
+      "completeness_score": [
+        0,
+        2
+      ]
+    }
   },
   {
     "question": "Access Token과 Refresh Token의 차이를 설명해주세요.",
-    "answer": "Access Token은 인증에 사용되고 Refresh Token은 Access Token을 재발급할 때 사용됩니다.",
+    "answer": "Access Token은 로그인할 때 쓰는 토큰이고, Refresh Token은 새로고침할 때마다 자동으로 발급되는 토큰입니다.",
     "answer_level": "average",
-    "expected": { "technical_score": [4, 7], "completeness_score": [4, 7] }
+    "expected": {
+      "technical_score": [
+        1,
+        4
+      ],
+      "completeness_score": [
+        1,
+        4
+      ]
+    }
   },
   {
     "question": "Access Token과 Refresh Token의 차이를 설명해주세요.",
     "answer": "Access Token은 짧은 만료 시간을 가지며 실제 API 요청 인증에 사용되고, Refresh Token은 더 긴 만료 시간을 가지며 Access Token이 만료됐을 때 재발급을 위해서만 사용됩니다. 이렇게 역할을 분리하면 Access Token이 탈취되더라도 피해 시간을 짧게 제한할 수 있습니다.",
     "answer_level": "good",
-    "expected": { "technical_score": [8, 10], "completeness_score": [8, 10] }
+    "expected": {
+      "technical_score": [
+        8,
+        10
+      ],
+      "completeness_score": [
+        8,
+        10
+      ]
+    }
   },
   {
     "question": "JWT를 클라이언트에서 어디에 저장해야 안전한가요?",
     "answer": "그냥 변수에 저장하면 됩니다.",
     "answer_level": "bad",
-    "expected": { "technical_score": [0, 2], "completeness_score": [0, 2] }
+    "expected": {
+      "technical_score": [
+        0,
+        3
+      ],
+      "completeness_score": [
+        0,
+        2
+      ]
+    }
   },
   {
     "question": "JWT를 클라이언트에서 어디에 저장해야 안전한가요?",
-    "answer": "LocalStorage나 Cookie에 저장합니다.",
+    "answer": "Cookie에 저장하면 안전합니다. 브라우저가 알아서 암호화해주기 때문입니다.",
     "answer_level": "average",
-    "expected": { "technical_score": [4, 7], "completeness_score": [4, 7] }
+    "expected": {
+      "technical_score": [
+        2,
+        5
+      ],
+      "completeness_score": [
+        2,
+        5
+      ]
+    }
   },
   {
     "question": "JWT를 클라이언트에서 어디에 저장해야 안전한가요?",
     "answer": "LocalStorage에 저장하면 XSS 공격에 취약하고 일반 Cookie는 CSRF 공격에 취약하므로, HttpOnly + Secure + SameSite 속성을 적용한 Cookie에 저장하는 방식이 권장됩니다.",
     "answer_level": "good",
-    "expected": { "technical_score": [8, 10], "completeness_score": [8, 10] }
+    "expected": {
+      "technical_score": [
+        8,
+        10
+      ],
+      "completeness_score": [
+        8,
+        10
+      ]
+    }
   },
   {
     "question": "FastAPI에서 비동기(async/await) 처리가 왜 유리한가요?",
     "answer": "빠르니까 좋습니다.",
     "answer_level": "bad",
-    "expected": { "technical_score": [0, 2], "completeness_score": [0, 2] }
+    "expected": {
+      "technical_score": [
+        0,
+        2
+      ],
+      "completeness_score": [
+        0,
+        2
+      ]
+    }
   },
   {
     "question": "FastAPI에서 비동기(async/await) 처리가 왜 유리한가요?",
-    "answer": "비동기로 하면 여러 요청을 동시에 처리할 수 있어서 좋습니다.",
+    "answer": "비동기로 하면 여러 스레드를 만들어서 동시에 여러 작업을 처리할 수 있어 빠릅니다.",
     "answer_level": "average",
-    "expected": { "technical_score": [4, 7], "completeness_score": [4, 7] }
+    "expected": {
+      "technical_score": [
+        2,
+        5
+      ],
+      "completeness_score": [
+        2,
+        5
+      ]
+    }
   },
   {
     "question": "FastAPI에서 비동기(async/await) 처리가 왜 유리한가요?",
     "answer": "FastAPI는 ASGI 기반이라 I/O 대기 중에도 다른 요청을 처리할 수 있어, DB 조회나 LLM API 호출처럼 지연 시간이 긴 I/O 바운드 작업에서 처리량을 높일 수 있습니다. 다만 CPU 바운드 작업에는 비동기가 자동으로 이점을 주지 않습니다.",
     "answer_level": "good",
-    "expected": { "technical_score": [8, 10], "completeness_score": [8, 10] }
+    "expected": {
+      "technical_score": [
+        8,
+        10
+      ],
+      "completeness_score": [
+        8,
+        10
+      ]
+    }
   },
   {
     "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
     "answer": "잘 모르겠습니다.",
     "answer_level": "bad",
-    "expected": { "technical_score": [0, 2], "completeness_score": [0, 2] }
+    "expected": {
+      "technical_score": [
+        0,
+        2
+      ],
+      "completeness_score": [
+        0,
+        2
+      ]
+    }
   },
   {
     "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
-    "answer": "DB 연결 같은 거 할 때 씁니다.",
+    "answer": "DB 연결처럼 매번 새로 만들기 번거로운 객체를 한 번만 만들어서 재사용할 때 씁니다.",
     "answer_level": "average",
-    "expected": { "technical_score": [4, 7], "completeness_score": [4, 7] }
+    "expected": {
+      "technical_score": [
+        3,
+        6
+      ],
+      "completeness_score": [
+        3,
+        6
+      ]
+    }
   },
   {
     "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
     "answer": "DB 세션 관리나 인증 토큰 검증처럼 여러 엔드포인트에서 반복되는 로직을 Depends로 분리해서, 엔드포인트 함수 본문에서 반복 코드를 줄일 수 있습니다.",
     "answer_level": "good",
-    "expected": { "technical_score": [8, 10], "completeness_score": [8, 10] }
+    "expected": {
+      "technical_score": [
+        8,
+        10
+      ],
+      "completeness_score": [
+        8,
+        10
+      ]
+    }
   },
   {
     "question": "Access Token과 Refresh Token의 차이를 설명해주세요.",
     "answer": "Access Token은 인증에 사용되고 Refresh Token은 Access Token을 재발급할 때 사용됩니다.",
     "answer_level": "technically_correct_but_brief",
-    "expected": { "technical_score": [7, 10], "completeness_score": [0, 4] }
+    "expected": {
+      "technical_score": [
+        7,
+        10
+      ],
+      "completeness_score": [
+        0,
+        5
+      ]
+    }
   },
   {
     "question": "Access Token과 Refresh Token의 차이를 설명해주세요.",
     "answer": "JWT는 사용자가 로그인할 때 발급받는 토큰들의 집합으로, 여러 종류의 토큰을 조합해서 보안성을 높이고, 토큰 만료 시 자동으로 갱신되며 세션을 안전하게 유지할 수 있도록 다양한 메커니즘이 마련되어 있습니다.",
     "answer_level": "verbose_but_technically_wrong",
-    "expected": { "technical_score": [0, 3], "completeness_score": [5, 10] }
+    "expected": {
+      "technical_score": [
+        0,
+        3
+      ],
+      "completeness_score": [
+        0,
+        4
+      ]
+    }
   }
 ]
