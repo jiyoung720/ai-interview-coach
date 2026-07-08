@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from rag.chains import get_chain_a
+from rag.graph import build_chain_a_graph
 
 router = APIRouter()
 
@@ -12,6 +12,6 @@ class GenerateQuestionRequest(BaseModel):
 
 @router.post("/generate-question")
 def generate_question(request: GenerateQuestionRequest):
-    chain_a = get_chain_a()
-    result = chain_a.invoke(request.query)
-    return {"questions": result.questions}
+    graph = build_chain_a_graph()
+    result = graph.invoke({"question": request.query})
+    return {"questions": result["generated_questions"].questions}

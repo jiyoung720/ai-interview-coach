@@ -46,7 +46,7 @@ def build_chain_a_graph():
 def build_interview_agent_graph():
     """Chain B + 조건부 분기: Retrieval → Judge → (technical_score 낮으면) Followup
 
-    이게 이 프로젝트의 첫 Agent 형태 — 고정된 파이프라인이 아니라
+    이게 이 프로젝트의 첫 Agent 형태 - 고정된 파이프라인이 아니라
     State(evaluation_result)에 따라 다음 행동이 갈린다."""
     graph = StateGraph(InterviewState)
     graph.add_node("retrieval", retrieval_node)

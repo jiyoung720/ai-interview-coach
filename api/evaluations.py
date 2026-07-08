@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from rag.chains import get_chain_b
+from rag.graph import build_interview_agent_graph
 
 router = APIRouter()
 
@@ -13,6 +13,12 @@ class EvaluateAnswerRequest(BaseModel):
 
 @router.post("/evaluate-answer")
 def evaluate_answer(request: EvaluateAnswerRequest):
-    chain_b = get_chain_b()
-    result = chain_b.invoke({"question": request.question, "answer": request.answer})
-    return result
+    graph = build_interview_agent_graph()
+    result = graph.invoke({"question": request.question, "answer": request.answer})
+
+    evaluation = result["evaluation_result"]
+    return {
+        **evaluation.model_dump(),
+        "retrieved_sources": result["retrieved_sources"],
+        "followup_question": result.get("followup_question"),
+    }
