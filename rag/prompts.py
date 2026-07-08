@@ -31,3 +31,25 @@ EVALUATION_PROMPT = ChatPromptTemplate.from_template("""
 - improvements: 보완이 필요한 부분 목록
 - overall_feedback: 전반적인 피드백 한두 문장
 """)
+
+
+FOLLOWUP_PROMPT = ChatPromptTemplate.from_template("""
+당신은 기술 면접관입니다.
+아래는 지원자의 답변과 그에 대한 평가입니다. 평가에서 드러난 약점을 파고드는
+꼬리질문 1개를 생성하세요.
+
+[Question]
+{question}
+
+[Answer]
+{answer}
+
+[Weak Points]
+{improvements}
+
+[Reference]
+{context}
+
+꼬리질문은 [Weak Points]에서 지적된 내용 중 하나를 겨냥해야 하며,
+원래 질문의 범위를 벗어나지 않아야 합니다.
+""")
