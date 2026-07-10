@@ -41,8 +41,7 @@ def judge_node(state: InterviewState) -> dict:
 
 
 def user_docs_retrieval_node(state: InterviewState) -> dict:
-    """Chain A용 Retrieval Node — User Docs(Collection 1)에서 검색.
-    Chain B의 retrieval_node와 컬렉션만 다르고 패턴은 동일하다."""
+    """Chain A용 Retrieval Node — User Docs(Collection 1)에서 검색."""
     from rag.vectorstore import get_user_docs_retriever
 
     retriever = get_user_docs_retriever()
@@ -71,11 +70,35 @@ def generation_node(state: InterviewState) -> dict:
     return {"generated_questions": result}
 
 
-FOLLOWUP_THRESHOLD = 5  # technical_score가 이 값 미만이면 꼬리질문 생성
+FOLLOWUP_THRESHOLD = 5  # technical_score가 이 값 미만이면 Learning Tip + Followup 실행
+
+
+def learning_tip_node(state: InterviewState) -> dict:
+    """평가 결과의 약점(improvements)을 보완할 학습 팁을 생성한다.
+    followup_node보다 먼저 실행되어, 여기서 정한 topic을 Followup이 이어받는다."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from rag.config import GEMINI_MODEL
+    from rag.prompts import LEARNING_TIP_PROMPT
+    from rag.schemas import LearningTip
+
+    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    structured_llm = llm.with_structured_output(LearningTip)
+
+    improvements = "\n".join(f"- {item}" for item in state["evaluation_result"].improvements)
+
+    prompt_value = LEARNING_TIP_PROMPT.invoke({
+        "question": state["question"],
+        "improvements": improvements,
+        "context": state["context"],
+    })
+    result = structured_llm.invoke(prompt_value)
+
+    return {"learning_tip": result}
 
 
 def followup_node(state: InterviewState) -> dict:
-    """평가 결과의 약점(improvements)을 겨냥한 꼬리질문 1개를 생성한다."""
+    """learning_tip_node가 정한 topic을 그대로 겨냥한 꼬리질문을 생성한다."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     from rag.config import GEMINI_MODEL
@@ -83,12 +106,12 @@ def followup_node(state: InterviewState) -> dict:
 
     llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
 
-    improvements = "\n".join(f"- {item}" for item in state["evaluation_result"].improvements)
+    focus_topic = state["learning_tip"].topic
 
     prompt_value = FOLLOWUP_PROMPT.invoke({
         "question": state["question"],
         "answer": state["answer"],
-        "improvements": improvements,
+        "focus_topic": focus_topic,
         "context": state["context"],
     })
     response = llm.invoke(prompt_value)
@@ -99,8 +122,8 @@ def followup_node(state: InterviewState) -> dict:
     }
 
 
-def decide_followup(state: InterviewState) -> str:
-    """technical_score가 기준 미만이면 꼬리질문 노드로, 아니면 종료."""
+def decide_next_step(state: InterviewState) -> str:
+    """technical_score가 기준 미만이면 Learning Tip 노드로, 아니면 종료."""
     if state["evaluation_result"].technical_score < FOLLOWUP_THRESHOLD:
-        return "followup"
+        return "learning_tip"
     return "end"

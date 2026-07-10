@@ -17,8 +17,11 @@ def evaluate_answer(request: EvaluateAnswerRequest):
     result = graph.invoke({"question": request.question, "answer": request.answer})
 
     evaluation = result["evaluation_result"]
+    learning_tip = result.get("learning_tip")
+
     return {
         **evaluation.model_dump(),
         "retrieved_sources": result["retrieved_sources"],
         "followup_question": result.get("followup_question"),
+        "learning_tip": learning_tip.model_dump() if learning_tip else None,
     }

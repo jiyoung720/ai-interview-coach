@@ -11,3 +11,9 @@ class EvaluationResult(BaseModel):
     strengths: list[str]
     improvements: list[str]
     overall_feedback: str
+
+
+class LearningTip(BaseModel):
+    topic: str
+    reason: str
+    recommended_sections: list[str]
