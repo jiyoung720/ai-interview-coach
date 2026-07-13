@@ -249,3 +249,33 @@ Faithfulness는 답변을 개별 주장(claim) 단위로 쪼개 각각의 근거
 - README/Project Outcomes에 "RAGAS Faithfulness 평균 0.4412" 정량 결과 반영
 - Case 4(bad, faithfulness=0.6667)를 claim 단위로 분석해 어떤 주장이 "근거 있음"으로 판정됐는지 확인
 - Faithfulness 카테고리별 결과가 재현 가능한지(변동성 여부) 필요시 재실행으로 확인
+
+---
+
+## 2026-07-08 (계속) - RAGAS Context Precision 적용
+
+### 배경
+Faithfulness에 이어 명세서에 계획된 두 번째 지표인 Context Precision을 적용. `reference` 컬럼이 필요해 보류했던 부분을, Calibration Set의 "good" 답변(질문당 1개, 5개)을 reference로 재사용하는 방식으로 해결 - 새로운 데이터를 만들지 않고 기존 자산을 그대로 활용.
+
+### 검증 순서
+1. 단일 질문("JWT란 무엇인가?")으로 정상 동작 확인 → 1.0000
+2. Calibration Set에서 질문 5개(JWT 정의, Access/Refresh Token, JWT 저장 위치, FastAPI 비동기, FastAPI DI) 각각의 good 답변을 reference로 삼아 `run_context_precision.py`로 자동화
+
+### 결과
+5개 질문 전체 context_precision = 1.0000 (전체 평균 1.0000)
+
+### 결과 해석
+Interview KB(Collection 2)가 현재 `jwt.md`, `fastapi.md` 2개 문서뿐이라 chunk 수가 매우 적음(Day 1에서 이미 확인된 사실 - k=3 요청 시 사실상 KB 전체가 반환됨). 이 조건에서는 무관한 chunk가 상위로 올라올 가능성 자체가 거의 없어, Context Precision이 "Retriever가 진짜로 관련도를 잘 구분하는가"를 변별하기 어려운 상태.
+
+질문 표본을 5개에서 늘리는 것으로는 이 문제가 해결되지 않음 - 변별력 부족의 원인은 질문 개수가 아니라 KB 문서 수 자체에 있음. 선택할 수 있는 문서가 2개뿐이면 질문을 아무리 늘려도 오답 후보가 늘지 않음.
+
+**이번 실험의 실제 목적은 Retriever 성능을 입증하는 것이 아니라, Context Precision 평가 파이프라인을 구축하고 현재 적용 조건의 한계를 확인하는 것이었다.**
+
+### 결론
+1. Context Precision 자동화 파이프라인(`run_context_precision.py`) 자체는 정상 작동 확인
+2. 현재 KB 규모에서 나온 만점은 "완벽한 검색"이 아니라 "측정 조건 미충족"으로 판단 - 성급한 긍정적 결론을 피함
+3. KB 확장은 Retrieval·Faithfulness·Learning Tip·Followup·Agent 전반에 영향을 주는 큰 변경이므로, "한 번에 하나만 바꾼다"는 원칙에 따라 이번 실험 범위에서 분리하고 별도 Future Work로 남김
+
+### Action Item (Future Work로 분리)
+- KB를 20~30개 문서로 확장한 뒤 Context Precision 재측정 - 다음 우선순위(Embedding 비교, README 정리, uv 전환, GitHub 정리)를 마친 뒤 진행
+- KB 확장 전까지는 README/Project Outcomes에 Context Precision 수치를 "파이프라인 구축 완료, 현재 KB 규모의 한계로 조건부 결과"로 표기
