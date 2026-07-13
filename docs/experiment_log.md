@@ -184,3 +184,68 @@ Agent의 확장 방향을 "더 복잡한 도구를 붙이는 것"이 아니라 "
 
 ### Action Item
 - v3 확장 시 Learning Tip 앞에 Knowledge Search(KB 재검색)를 추가해 "Learning Tip이 더 정확한 근거로 topic을 정하도록" 개선 가능 - 이 시점에는 "왜 두 번째 검색이 필요한가"에 대한 답이 자연스럽게 "Learning Tip 품질 개선을 위해"로 정리되어, v2 시점에 우려했던 중복 검색 문제가 해소됨
+
+---
+
+## 2026-07-13 (계속) - RAGAS Faithfulness 적용
+
+### 배경
+Day 2에서 정성적으로 발견했던 "Retriever 성공 ≠ Faithfulness 보장" 문제를 RAGAS로 정량화하기 위해 라이브러리를 도입.
+
+### 환경 이슈 및 해결
+- `ragas` 최신 버전(0.4.x)이 `langchain_community.chat_models.vertexai` 경로(이미 `langchain-google-vertexai`로 이전됨)를 참조해 import 자체가 실패 - 알려진 버그. `ragas<0.4`로 다운그레이드했으나 동일 에러 재현.
+- 근본 원인은 `ragas`가 아니라 `langchain-community`가 최신(0.4.2)이었던 것 - `ragas==0.3.9`가 기대하는 `langchain-community<0.4`로 함께 낮춰서 해결.
+- Gemini/`ko-sroberta-multitask`를 RAGAS의 judge·embedding으로 재사용: `LangchainLLMWrapper(ChatGoogleGenerativeAI)`, `LangchainEmbeddingsWrapper(get_embeddings())` - 별도 OpenAI 키 불필요.
+- `context_precision`은 `reference` 컬럼을 요구해 이번 라운드에서는 보류, `faithfulness`만 우선 적용.
+
+### 설계 오류 발견 및 수정 - Chain A가 아니라 Chain B에 적용해야 했음
+최초 시도는 Chain A(질문 생성)에 Faithfulness를 적용하려 했으나, `answer` 자리에 "생성된 면접 질문"을 넣는 것은 지표의 전제(주장이 context에 근거하는가)와 맞지 않음을 지적받음. 면접 질문은 "주장"이 아니라 "질의"라 Faithfulness가 측정하려는 대상이 아니었음.
+
+Chain B(질문 + 사용자 답변 + context)는 이미 완전한 QA 형태라 Faithfulness 적용이 자연스러움. **"사용자 답변이 KB에 근거하는가"**를 측정하는 것으로 목적을 재정의.
+
+또한 최초 코드는 `build_interview_agent_graph()`(Retrieval→Judge→Learning Tip→Followup 전체)를 실행해놓고 `context`만 사용해, Faithfulness 계산에 불필요한 Gemini 호출(Judge, Learning Tip, Followup)이 발생하고 있었음. `build_retrieval_only_graph()`로 교체해 필요한 호출만 남김.
+
+### 검증 순서 (Day 1~4와 동일 패턴 적용)
+1. 단일 케이스(good)로 정상 동작 확인 → faithfulness = 1.0000
+2. bad/average/good 3개 비교 → 0.0000 / 0.5000 / 1.0000, 기대한 단조 증가 패턴 확인
+3. `eval_result` 반환 타입 확인(`EvaluationResult`, `["faithfulness"]`는 `list`) - repr이 스칼라처럼 보여 인덱싱 방식을 사전에 명확히 확인
+4. Calibration Set 필드명(`answer_level`) 실제 존재 여부 확인
+5. `LIMIT=3`으로 자동화 스크립트(`run_ragas.py`) 먼저 시험 실행 → 정상
+6. `LIMIT=None`으로 17개 전체 실행
+
+### 17개 전체 실행 결과
+
+| 카테고리 | 평균 Faithfulness | n |
+|---|---|---|
+| bad | 0.1333 | 5 |
+| average | 0.1667 | 5 |
+| good | 1.0000 | 5 |
+| technically_correct_but_brief | 1.0000 | 1 |
+| verbose_but_technically_wrong | 0.0000 | 1 |
+
+전체 평균: 0.4412
+
+### 발견 1 - good / verbose_but_technically_wrong에서 방향이 일치함
+`verbose_but_technically_wrong`(틀린 내용을 길게 설명한 답변)의 Faithfulness가 0.0000으로 나옴. Judge Calibration에서 이 답변의 completeness_score 기대값을 낮게(≤4) 잡았던 판단과 같은 방향의 결과. 다만 Judge(기술적 정확성·완성도를 봄)와 Faithfulness(주장이 context에 근거하는가를 봄)는 서로 다른 기준으로 평가하는 독립적인 지표이므로, "서로를 검증했다"기보다는 **서로 다른 기준에서도 일관된 방향의 결과를 보였다**는 정도로 해석하는 것이 정확함.
+
+### 발견 2 - bad와 average의 평균이 예상보다 가까움 (0.1333 vs 0.1667)
+3개 축소 테스트에서는 bad=0.0, average=0.5로 뚜렷이 구분됐으나, 17개 전체에서는 두 카테고리 평균이 근접함.
+
+개별 점수를 보면:
+- bad 5개: [0.0, 0.6667, 0.0, 0.0, 0.0] - Case 4("둘 다 토큰이라 비슷합니다")만 0.6667로 이례적으로 높음
+- average 5개: [0.5, 0.0, 0.0, 0.3333, 0.0] - 3/5가 0.0으로, 카테고리 전체가 예상보다 낮음
+
+즉 두 평균이 가까워진 원인은 **Case 4의 이례적 상승과 average 카테고리 자체의 전반적인 낮음이 함께 작용한 결과**로 판단됨. Case 4 하나만으로 설명하기엔 average 카테고리 자체도 이미 낮은 값들로 구성되어 있어, 원인을 단일 요인으로 단정하지 않음.
+
+Faithfulness는 답변을 개별 주장(claim) 단위로 쪼개 각각의 근거 여부를 판정하는 방식이라, 짧고 얕은 주장이라도 완전히 틀리지는 않으면 점수가 올라갈 수 있다는 가설은 유효하나, 아직 claim 단위 분석은 하지 않아 확정적이지 않음. 결론적으로 **Faithfulness("주장이 근거 있는가")와 Judge의 technical_score("기술적 정확성과 완성도")는 서로 다른 것을 측정하는 지표**이며, 두 지표가 항상 같은 순서로 카테고리를 구분해줄 것이라는 가정은 성립하지 않음을 확인.
+
+### 결론
+1. RAGAS 적용 대상은 Chain A가 아니라 Chain B로 재설정하는 것이 지표 의미상 정확함
+2. Faithfulness와 Judge Calibration은 서로 다른 기준에서도 일부 일관된 결과를 보였으나(발견 1), 항상 같은 판단을 내리는 것은 아님(발견 2) - 두 지표를 같은 목적으로 혼용하지 않도록 유의
+3. RAGAS도 Judge Calibration과 동일하게 "프로토타입(3개) → 자동화(17개)"의 발전 과정을 거침
+
+### Action Item
+- `context_precision`은 `reference` 데이터 설계를 별도로 진행한 뒤 추가 적용
+- README/Project Outcomes에 "RAGAS Faithfulness 평균 0.4412" 정량 결과 반영
+- Case 4(bad, faithfulness=0.6667)를 claim 단위로 분석해 어떤 주장이 "근거 있음"으로 판정됐는지 확인
+- Faithfulness 카테고리별 결과가 재현 가능한지(변동성 여부) 필요시 재실행으로 확인
