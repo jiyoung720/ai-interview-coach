@@ -252,7 +252,7 @@ Faithfulness는 답변을 개별 주장(claim) 단위로 쪼개 각각의 근거
 
 ---
 
-## 2026-07-08 (계속) - RAGAS Context Precision 적용
+## 2026-07-13 (계속) - RAGAS Context Precision 적용
 
 ### 배경
 Faithfulness에 이어 명세서에 계획된 두 번째 지표인 Context Precision을 적용. `reference` 컬럼이 필요해 보류했던 부분을, Calibration Set의 "good" 답변(질문당 1개, 5개)을 reference로 재사용하는 방식으로 해결 - 새로운 데이터를 만들지 않고 기존 자산을 그대로 활용.
@@ -279,3 +279,78 @@ Interview KB(Collection 2)가 현재 `jwt.md`, `fastapi.md` 2개 문서뿐이라
 ### Action Item (Future Work로 분리)
 - KB를 20~30개 문서로 확장한 뒤 Context Precision 재측정 - 다음 우선순위(Embedding 비교, README 정리, uv 전환, GitHub 정리)를 마친 뒤 진행
 - KB 확장 전까지는 README/Project Outcomes에 Context Precision 수치를 "파이프라인 구축 완료, 현재 KB 규모의 한계로 조건부 결과"로 표기
+
+---
+
+## 2026-07-13 (계속) - Embedding 비교 실험 (ko-sroberta-multitask vs Gemini Embedding)
+
+### 배경
+명세서에 계획된 임베딩 비교 실험. `ko-sroberta-multitask`와 Gemini Embedding(`gemini-embedding-001`)으로 동일한 KB를 각각 인덱싱한 뒤, Calibration Set의 good 답변 5개를 기준으로 Faithfulness/Context Precision을 나란히 측정.
+
+### 방법
+- `rag/embeddings.py`에 `get_gemini_embeddings()` 추가, `rag/vectorstore.py`에 별도 컬렉션(`interview_kb_gemini_embedding`) 추가 - 기존 `ko-sroberta` 컬렉션은 그대로 두고 완전히 독립적으로 비교
+- 동일 KB(`jwt.md`, `fastapi.md`)를 두 임베딩으로 각각 인덱싱
+- `scripts/compare_embeddings.py`로 질문 5개 × 임베딩 2개 = 10회 RAGAS 평가 자동화
+
+### 환경 이슈
+`GoogleGenerativeAIEmbeddings` 초기화 시 API 키 인식 실패 - `rag/embeddings.py`가 `rag.config`(`.env` 로딩)를 import하지 않고 있어 `GEMINI_API_KEY`가 스크립트 실행 시점에 환경변수로 존재하지 않았음. `google_api_key` 파라미터에 `rag.config.GEMINI_API_KEY`를 명시적으로 전달해 해결.
+
+### 결과
+두 임베딩 모두 5개 질문 전부 faithfulness=1.0000, context_precision=1.0000 - 완전히 동일.
+
+### 결과 해석 - 이번에도 KB 규모가 측정을 무의미하게 만듦...........
+Context Precision 단독 실험(직전 로그)에서 이미 확인했던 것과 동일한 구조적 한계가 재현됨: KB가 2개 문서, chunk 4개뿐이라 `k=3` 검색 시 사실상 KB 전체가 반환됨. 이 조건에서는 어떤 임베딩 모델을 쓰든 관련 chunk가 상위로 나올 수밖에 없어, 임베딩 간 차이가 드러날 여지 자체가 없음.
+
+즉 이번 결과는 "두 임베딩이 동등한 성능을 보였다"가 아니라 **"현재 KB 규모에서는 임베딩 선택이 결과에 영향을 줄 수 없는 조건"**이라는 뜻. Context Precision 단독 실험과 Embedding 비교 실험, 서로 다른 두 실험에서 같은 구조적 제약이 반복 확인됨.
+
+### 결론
+1. KB 규모 확장 없이는 Retrieval 관련 지표(Context Precision, Embedding 비교)로 의미 있는 판단을 내릴 수 없다는 것이 두 차례에 걸쳐 재현됨 - 우연이 아니라 구조적 제약으로 판단
+2. 이번 실험은 "두 임베딩 중 어느 쪽이 더 나은가"에 답을 주지 못했다 - 결과가 동일했던 것은 임베딩 성능이 같아서가 아니라 측정 조건 자체가 변별력을 갖지 못했기 때문. 따라서 임베딩 선택을 이번 결과로 정당화할 수 없으며, 이 질문은 KB 확장 후 재실험 전까지 열린 상태로 남긴다
+3. KB 확장은 이제 Context Precision 재측정뿐 아니라 Embedding 비교 재실행의 전제 조건이기도 함 - 두 Future Work가 동일한 선행 작업에 의존
+
+### Action Item
+- KB 20~30개 확장 후 Context Precision과 Embedding 비교를 함께 재실행 (동일 KB 확장 작업으로 두 실험을 한 번에 재검증 가능)
+- README/Project Outcomes에는 "임베딩 비교 파이프라인 구축 완료, 현재 KB 규모의 한계로 유의미한 비교는 KB 확장 이후로 보류"로 기록
+
+---
+
+## 2026-07-14 (계속) - KB 확장 후 Context Precision / Embedding 비교 재실행
+
+### 배경
+직전 실험(Context Precision 단독, Embedding 비교)에서 KB가 2개 문서(jwt.md, fastapi.md)뿐이라 두 지표 모두 변별력을 갖지 못했음을 확인. GPT와 함께 "관련 있지만 핵심은 아닌" 문서를 의도적으로 섞어 KB를 재설계.
+
+### KB 확장
+기존 2개에 8개 문서(spring, postgresql, docker, http, oauth, caching, session_vs_token, async_sync) + cors 1개, 총 11개로 확장. 설계 원칙:
+- 여전히 "파일당 주제 하나" 유지 (Day 1 원칙)
+- 완전히 무관한 문서뿐 아니라, 의도적으로 교차 언급 문장을 삽입해 "관련은 있지만 핵심은 아닌" 케이스를 만듦 - 예: `oauth.md` 끝에 JWT와의 관계 문단 추가, `http.md`에 Authorization 헤더 언급, `caching.md`에 JWT 블랙리스트 언급, `spring.md`에 FastAPI Depends() 비교
+- 두 컬렉션(`ko-sroberta`, Gemini Embedding) 모두 동일하게 11개로 재인덱싱
+
+### Retriever 단독 재검증
+`retriever.invoke("JWT")` 결과, 상위 2개는 `jwt.md`, 3위는 (예전처럼 무관한 `fastapi.md`가 아니라) `oauth.md`의 "JWT와의 관계" 문단이 랭킹됨 - KB 확장이 의도한 대로 "관련도에 따른 순위"를 만들어냈음을 확인.
+
+### Context Precision 재실행 결과
+5개 질문 평균 0.8000 (기존 1.0000에서 하락). 특히 Q2("Access Token과 Refresh Token의 차이")에서 0.0000 - `jwt.md`와 `oauth.md`가 동시에 "Access Token"을 언급해 검색 결과가 흔들린 것으로 추정.
+
+### Embedding 비교 재실행 결과 - 처음으로 유의미한 차이 확인
+
+| | Faithfulness | Context Precision |
+|---|---|---|
+| ko-sroberta-multitask | 0.8400 | 0.8000 |
+| Gemini Embedding | 1.0000 | 1.0000 |
+
+5개 질문 중 4개는 두 임베딩 모두 만점으로 동일했으나, Q2("Access Token과 Refresh Token의 차이")에서만 `ko-sroberta`가 faithfulness=0.2000, context_precision=0.0000으로 크게 하락한 반면 Gemini Embedding은 1.0000을 유지함.
+
+### 해석
+Q2는 `jwt.md`(정답)와 `oauth.md`("JWT와의 관계" 문단)가 모두 "Access Token"이라는 표면적 어휘를 공유하는, KB 내에서 가장 구분이 어려운 케이스. `ko-sroberta`는 `oauth.md`를 더 높은 순위로 검색했는데, 이는 두 문서가 공유하는 "Access Token" 등의 용어가 영향을 준 것으로 추정된다(내부 판단 근거를 직접 확인한 것은 아님). Gemini Embedding은 이 케이스에서 더 적절한 Retrieval 결과를 반환한 것으로 해석할 수 있다.
+
+이전 실험(KB 2개 문서)에서는 이런 "헷갈리는 케이스" 자체가 KB에 존재하지 않아 두 임베딩이 항상 동일한 결과를 냈음. KB를 의도적으로 확장해 구분이 어려운 케이스를 포함시키자, 두 임베딩의 관측 가능한 성능 차이가 처음으로 드러남.
+
+### 결론
+1. 이전 실험에서 "실험 결과로 임베딩을 선택할 수 없다"고 정리했던 결론을 정정할 근거가 마련됨. 다만 이는 이전 결론이 틀렸다는 뜻이 아니라, 당시 KB 조건(2개 문서)에서는 그 판단이 타당했고 이번에 실험 조건(KB 11개, 구분이 어려운 케이스 포함)이 달라졌기 때문에 결론도 함께 업데이트된 것으로 봐야 함. 현재 표본은 1개 케이스(Q2)뿐이라 일반화하기는 이르며, "구분이 어려운 조건에서는 Gemini Embedding이 ko-sroberta보다 안정적이었다"는 관찰 수준으로 정리함
+2. **이번 프로젝트에서 Retrieval 관련 실험(Day 1 semantic retrieval, Context Precision 단독, 첫 Embedding 비교, 이번 재실험)은 모두 "KB의 품질과 규모가 Retrieval 성능 평가의 전제 조건"이라는 동일한 결론으로 수렴했다.** 이는 개별 실험 각각의 발견이 아니라, 네 차례의 독립적인 실험이 반복적으로 도달한 공통 패턴이라는 점에서 신뢰도가 높음
+3. 다만 현재 표본(질문 5개, 그중 차이가 드러난 건 1개)은 결론을 확정하기엔 작음 - Retrieval 평가에 특화된 질문 세트를 별도로 확장하면 더 신뢰할 수 있는 결과를 얻을 수 있음
+
+### Action Item
+- Retrieval 평가 전용 질문 세트를 새로 구성해 표본 확대 (Calibration Set은 Judge 평가용으로 목적이 다르므로 재사용하지 않음) - 예: JWT, OAuth, Session, Docker, Spring, HTTP, CORS, Cache 등 KB 11개 주제를 고르게 커버하는 질문들로 별도 세트 작성
+- README/Key Findings에 "Retrieval 관련 실험들이 공통적으로 KB 규모·구성의 중요성을 가리켰다"는 발견을 핵심 항목으로 반영
+- Project Outcomes에는 "KB 확장 후 재실험 결과, 구분이 어려운 케이스에서 Gemini Embedding이 더 안정적인 경향을 관찰함(표본 제한적, 추가 검증 필요)"으로 조건부 반영
