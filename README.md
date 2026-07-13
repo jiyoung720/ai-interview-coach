@@ -2,14 +2,14 @@
 
 사용자의 이력서·포트폴리오 문서를 기반으로 개인화된 기술 면접 질문을 생성하고, 답변을 평가하는 RAG 기반 AI 면접 코치 서비스입니다.
 
-> 문서 기반 질문 생성과 답변 평가를 구현하고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증한 뒤 LangGraph 기반 Agent로 확장했습니다. (자세한 진행 상황은 [Project Outcomes](#project-outcomes) 참고)
+> 단순히 RAG를 구현하는 데 그치지 않고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증하며 설계를 반복 개선했습니다. LangGraph 기반 Agent로 확장한 뒤에도 동일한 검증 방식을 유지했습니다. (자세한 진행 상황은 [Project Outcomes](#project-outcomes) 참고)
 
 ## Why this project?
 
 이 프로젝트는 GPT-style Transformer를 PyTorch로 직접 구현한 [`korean-chatbot`](https://github.com/jiyoung720/korean-chatbot) 프로젝트의 후속작입니다.
 
-- **`korean-chatbot`** - LLM 엔진 내부(Transformer, 토크나이저, 학습 루프)를 직접 구현하는 경험
-- **`ai-interview-coach`** - 기성 LLM(Gemini API)을 활용해 실제 서비스를 설계·구축·서빙·평가하는 경험
+- **`korean-chatbot`** — LLM 엔진 내부(Transformer, 토크나이저, 학습 루프)를 직접 구현하는 경험
+- **`ai-interview-coach`** — 기성 LLM(Gemini API)을 활용해 실제 서비스를 설계·구축·서빙·평가하는 경험
 
 두 프로젝트를 함께 보면 "모델 내부를 이해하는 능력"과 "실제 서비스를 만드는 능력"을 둘 다 보여줄 수 있도록 의도적으로 분리했습니다.
 
@@ -29,7 +29,7 @@ curl -X POST http://127.0.0.1:8000/generate-question \
 {"questions": ["FastAPI의 비동기(async/await) 처리 방식이 ...", "JWT를 이용한 사용자 인증을 구현할 때 ...", "..."]}
 ```
 
-**답변 평가 + Agent 분기 (technical_score가 5 미만이면 꼬리질문 자동 생성)**
+**답변 평가 + Agent 분기 (technical_score가 낮으면 꼬리질문 자동 생성)**
 ```bash
 curl -X POST http://127.0.0.1:8000/evaluate-answer \
   -H "Content-Type: application/json" \
@@ -51,30 +51,32 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 
 ```mermaid
 flowchart TB
-    subgraph ChainA["Chain A - 질문 생성"]
+    subgraph ChainA["Chain A — 질문 생성"]
         A1[Retrieval Node<br/>User Docs] --> A2[Generation Node<br/>Gemini Structured Output]
     end
-    subgraph ChainB["Chain B + Agent - 답변 평가"]
+    subgraph ChainB["Chain B + Agent v2 — 답변 평가"]
         B1[Retrieval Node<br/>Interview KB] --> B2[Judge Node<br/>Gemini Structured Output]
         B2 --> BD{Decision<br/>technical_score?}
-        BD -->|"< 5"| B3[Followup Node<br/>꼬리질문 생성]
+        BD -->|"< 5"| B3[Learning Tip Node<br/>약점 기반 학습 추천]
+        B3 -->|"topic 전달"| B5[Followup Node<br/>Learning Tip의 topic을<br/>이어받아 꼬리질문 생성]
         BD -->|">= 5"| B4[End]
-        B3 --> B4
+        B5 --> B4
     end
 ```
 
-**technical_score가 5 미만이면 Agent가 자동으로 후속 질문을 생성합니다** - 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 첫 Agent 형태입니다.
+**technical_score가 5 미만이면 Agent가 Learning Tip → Followup을 순차로 생성합니다** — 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 Agent 형태입니다. Learning Tip과 Followup을 병렬이 아닌 순차로 설계한 이유: 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험이 있어, Learning Tip이 먼저 핵심 주제(topic)를 정하고 Followup이 그 결과를 이어받도록 했습니다.
 
 두 체인 모두 LangChain LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 분리해 (1) 문제 발생 시 어느 단계인지 바로 특정할 수 있고, (2) 평가 점수에 따른 조건부 분기(Agent)를 Node 단위로 추가할 수 있도록 설계했습니다. 기존 LCEL 코드(`rag/chains.py`)는 삭제하지 않고 그대로 보존해, Migration 과정 자체를 코드로 증명할 수 있게 했습니다.
 
 ## Key Findings
 
-코드를 짜는 과정에서 발견한 것들 - 단순히 "작동한다"가 아니라 "왜 그렇게 작동하는지"를 확인한 실험들입니다. 전체 내용은 [실험 로그](docs/experiment_log.md)에 있습니다.
+코드를 짜는 과정에서 발견한 것들 — 단순히 "작동한다"가 아니라 "왜 그렇게 작동하는지"를 확인한 실험들입니다. 전체 내용은 [실험 로그](docs/experiment_log.md)에 있습니다.
 
-- **혼합 주제 chunk는 유사도 점수를 왜곡시킬 수 있음** - 여러 주제가 섞인 긴 chunk가 단일 주제의 짧은 chunk보다 더 높은 유사도를 받는 경우를 실측으로 확인. → KB는 파일당 주제 하나로 작성.
-- **Retriever 성공 ≠ Faithfulness 보장** - 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. → RAGAS에 Faithfulness 포함.
-- **Judge Calibration으로 프롬프트/테스트 데이터 결함을 구분해냄** - Judge 채점을 그대로 신뢰하지 않고 Calibration Set(17개)으로 검증. 실패 원인을 분석한 결과 Judge가 아니라 Calibration Set 자체의 설계 결함(동일 답변에 서로 다른 기대치 부여)이 원인이었음을 발견, 재설계를 통해 정확도를 52.9% → 94.1%로 향상시킴.
-- **LangGraph 마이그레이션 검증에 Calibration Set을 회귀 테스트로 재사용** - LCEL → LangGraph Migration 이후에도 기존 Judge 동작이 유지되는지 확인하기 위해, 그래프로 옮긴 뒤 동일한 Calibration Set을 재실행(88.2%)함. 실패 케이스가 LCEL 버전에서도 존재했던 경계선 변동과 동일함을 확인 - 마이그레이션이 새로운 오분류를 만들지 않았음을 검증.
+- **혼합 주제 chunk는 유사도 점수를 왜곡시킬 수 있음** — 여러 주제가 섞인 긴 chunk가 단일 주제의 짧은 chunk보다 더 높은 유사도를 받는 경우를 실측으로 확인. → KB는 파일당 주제 하나로 작성.
+- **Retriever 성공 ≠ Faithfulness 보장** — 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. → RAGAS에 Faithfulness 포함.
+- **Judge Calibration으로 프롬프트/테스트 데이터 결함을 구분해냄** — Judge 채점을 그대로 신뢰하지 않고 Calibration Set(17개)으로 검증. 실패 원인을 분석한 결과 Judge가 아니라 Calibration Set 자체의 설계 결함(동일 답변에 서로 다른 기대치 부여)이 원인이었음을 발견, 재설계를 통해 정확도를 52.9% → 94.1%로 향상시킴.
+- **LangGraph 마이그레이션 검증에 Calibration Set을 회귀 테스트로 재사용** — LCEL → LangGraph Migration 이후에도 기존 Judge 동작이 유지되는지 확인하기 위해, 그래프로 옮긴 뒤 동일한 Calibration Set을 재실행(88.2%)함. 실패 케이스가 LCEL 버전에서도 존재했던 경계선 변동과 동일함을 확인 — 마이그레이션이 새로운 오분류를 만들지 않았음을 검증.
+- **Agent 확장 시 병렬보다 순차가 나은 경우가 있음** — Learning Tip과 Followup을 처음엔 병렬 노드로 설계했으나, 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험을 발견. Learning Tip이 먼저 topic을 정하고 Followup이 그 결과를 이어받는 순차 구조로 변경해, 두 출력이 항상 같은 주제를 가리키도록 함.
 
 ## Tech Stack
 
@@ -83,43 +85,15 @@ flowchart TB
 - **Vector DB**: Chroma (`hnsw:space=cosine`)
 - **Embedding**: `ko-sroberta-multitask`
 - **LLM**: Gemini 3.5 Flash (structured output)
-- **Evaluation**: Judge Calibration Set (완료), RAGAS (예정)
+- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set (완료), RAGAS (예정)
 
 ## Project Outcomes
 
+- Semantic Retrieval, Faithfulness, Judge Calibration을 실험으로 검증하며 설계를 반복 개선
 - LangChain LCEL 기반 RAG(Retrieval → Generation/Judge)를 LangGraph StateGraph로 마이그레이션
 - Judge Calibration Set(17개)으로 평가 로직을 검증하고, 이를 마이그레이션 회귀 테스트로 재사용
 - Retrieval / Judge / Generation을 독립적인 Graph Node로 분리해 디버깅 가능성과 확장성 확보
-- technical_score 기반 조건부 분기로 Agent 확장 - 낮은 점수 시 자동 꼬리질문 생성
-
-## Roadmap
-
-### Phase 1 - Retrieval (완료)
-- [x] 문서 업로드 API (`POST /documents`)
-- [x] Chunking + Embedding + Chroma 인덱싱 (dedup 포함)
-- [x] Semantic Retrieval 검증 (키워드 매칭이 아닌 의미 기반 검색 확인)
-
-### Phase 2 - Question Generation (완료)
-- [x] Gemini API 연동 (단계별 검증: Gemini 단독 → Prompt 단독 → Retriever+Prompt → 전체 체인)
-- [x] Structured Output으로 응답 형식 고정 (`InterviewQuestions`)
-- [x] `POST /generate-question` 엔드포인트
-
-### Phase 3 - Answer Evaluation (완료)
-- [x] Interview KB 구축 (`jwt.md`, `fastapi.md`)
-- [x] Chain B (Gemini Judge 기반 답변 평가, `retrieved_sources` 코드 추출)
-- [x] `POST /evaluate-answer` 엔드포인트
-- [x] Judge Calibration Set 17개 자동화 및 반복 개선 (52.9% → 94.1%)
-
-### Phase 4 - LangGraph Migration & Agent (완료)
-- [x] Chain A/B를 StateGraph(Retrieval Node + Generation/Judge Node)로 마이그레이션
-- [x] Calibration Set을 회귀 테스트로 재사용해 마이그레이션 검증 (88.2%)
-- [x] technical_score 기반 조건부 분기(Agent) - 낮은 점수 시 꼬리질문 자동 생성
-- [x] FastAPI 엔드포인트를 새 그래프로 교체
-
-### Phase 5 - Evaluation (진행 예정)
-- [ ] RAGAS (Faithfulness, Context Precision)
-- [ ] Embedding 비교 실험 (`ko-sroberta-multitask` vs Gemini Embedding)
-- [ ] `uv`로 패키지 매니저 전환
+- technical_score 기반 Agent를 구현하고, Learning Tip이 생성한 topic을 Followup이 이어받도록 설계하여 Agent 출력의 일관성을 확보
 
 ## API
 
@@ -142,9 +116,9 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
   -H "Content-Type: application/json" \
   -d '{"question": "JWT란 무엇인가?", "answer": "..."}'
 ```
-응답: `{"technical_score": ..., "completeness_score": ..., "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "followup_question": "..." | null}`
+응답: `{"technical_score": ..., "completeness_score": ..., "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "learning_tip": {"topic": ..., "reason": ..., "recommended_sections": [...]} | null, "followup_question": "..." | null}`
 
-`technical_score`가 5 미만이면 Agent가 자동으로 `followup_question`을 생성합니다 (점수가 충분하면 `null`).
+`technical_score`가 5 미만이면 Agent가 `learning_tip`과 `followup_question`을 순차로 생성합니다 (점수가 충분하면 둘 다 `null`). `followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
 
 ## 실행 방법
 
@@ -158,5 +132,5 @@ uvicorn app.main:app --reload
 
 ## 문서
 
-- [프로젝트 명세서](docs/project_spec_v1.md)
+- [프로젝트 명세서](docs/project_spec_v1.md) — Phase별 상세 진행 상황(Roadmap) 포함
 - [실험 로그](docs/experiment_log.md)
