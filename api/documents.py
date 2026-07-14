@@ -13,7 +13,11 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 SUPPORTED_EXTENSIONS = {".md", ".txt"}
 
-
+# 질문 생성 (Chain A)
+# 입력: multipart 파일
+# 처리: 파일을 data/uploads/에 저장 → load_text_file()로 텍스트 읽기(rag/loader.py:7-8) 
+# → chunk_text()로 500자 단위(overlap 50자)로 분할 (rag/loader.py:11-25), 각 chunk에 metadata={"source": 파일명} 부착 
+# → 같은 파일명으로 재업로드되면 기존 chunk를 먼저 삭제
 @router.post("/documents")
 def upload_document(file: UploadFile = File(...)):
     suffix = Path(file.filename).suffix.lower()
