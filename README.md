@@ -88,8 +88,9 @@ flowchart TB
 - **Agent 확장 시 병렬보다 순차가 나은 경우가 있음**: Learning Tip과 Followup을 처음엔 병렬 노드로 설계했으나, 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험을 발견. Learning Tip이 먼저 topic을 정하고 Followup이 그 결과를 이어받는 순차 구조로 변경해, 두 출력이 항상 같은 주제를 가리키도록 함.
 
 ## Tech Stack
-
+ 
 - **Backend**: FastAPI
+- **패키지 관리**: uv
 - **Framework**: LangChain (LCEL) → LangGraph (StateGraph) 마이그레이션
 - **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 11개 문서
 - **Embedding**: `ko-sroberta-multitask` (기본), Gemini Embedding(`gemini-embedding-001`, 비교 실험용)
@@ -132,13 +133,11 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 `technical_score`가 5 미만이면 Agent가 `learning_tip`과 `followup_question`을 순차로 생성합니다 (점수가 충분하면 둘 다 `null`). `followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
 
 ## 실행 방법
-
+ 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+uv sync
 cp .env.example .env  # GEMINI_API_KEY 채우기
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 ## 문서
