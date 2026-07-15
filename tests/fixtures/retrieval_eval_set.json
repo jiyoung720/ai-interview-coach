@@ -1,102 +1,145 @@
 [
   {
     "question": "JWT란 무엇인가?",
-    "expected_source": "jwt.md",
-    "reference": "JWT는 사용자 인증 정보를 안전하게 전달하기 위한 토큰 기반 인증 방식으로, Header, Payload, Signature로 구성되며 서버가 별도 세션 저장소 없이 서명을 검증해 사용자를 인증할 수 있다."
+    "reference": "JWT는 사용자 인증 정보를 안전하게 전달하기 위한 토큰 기반 인증 방식으로, Header, Payload, Signature로 구성되며 서버가 별도 세션 저장소 없이 서명을 검증해 사용자를 인증할 수 있다.",
+    "expected_sources": [
+      "jwt.md"
+    ]
   },
   {
     "question": "JWT와 OAuth는 어떻게 다른가요?",
-    "expected_source": "oauth.md",
-    "reference": "OAuth는 권한 위임을 위한 프로토콜이고, JWT는 토큰의 형식을 정의하는 표준이다. 서로 다른 계층의 개념으로, OAuth의 Access Token을 JWT 형식으로 발급할 수도 있고 불투명 토큰으로 발급할 수도 있다."
+    "reference": "OAuth는 권한 위임을 위한 프로토콜이고, JWT는 토큰의 형식을 정의하는 표준이다. 서로 다른 계층의 개념으로, OAuth의 Access Token을 JWT 형식으로 발급할 수도 있고 불투명 토큰으로 발급할 수도 있다.",
+    "expected_sources": [
+      "oauth.md"
+    ]
   },
   {
     "question": "OAuth 2.0의 Authorization Code Grant 흐름을 설명해주세요.",
-    "expected_source": "oauth.md",
-    "reference": "사용자가 Authorization Server에서 로그인하고 동의하면, Client는 Authorization Code를 받고 이 코드를 다시 Access Token으로 교환한다. 이 과정에서 Access Token이 브라우저를 통해 직접 노출되지 않아 보안성이 높다."
+    "reference": "사용자가 Authorization Server에서 로그인하고 동의하면, Client는 Authorization Code를 받고 이 코드를 다시 Access Token으로 교환한다. 이 과정에서 Access Token이 브라우저를 통해 직접 노출되지 않아 보안성이 높다.",
+    "expected_sources": [
+      "oauth.md"
+    ]
   },
   {
     "question": "세션 기반 인증과 토큰 기반 인증의 차이는 무엇인가요?",
-    "expected_source": "session_vs_token.md",
-    "reference": "세션 기반 인증은 서버가 상태를 저장하고 클라이언트에는 세션 ID만 전달한다. 토큰 기반 인증은 서버가 상태를 저장하지 않고, 토큰 자체에 서명된 정보로 검증한다. 세션은 수평 확장 시 공유 저장소가 필요하지만 토큰은 그렇지 않다."
+    "reference": "세션 기반 인증은 서버가 상태를 저장하고 클라이언트에는 세션 ID만 전달한다. 토큰 기반 인증은 서버가 상태를 저장하지 않고, 토큰 자체에 서명된 정보로 검증한다. 세션은 수평 확장 시 공유 저장소가 필요하지만 토큰은 그렇지 않다.",
+    "expected_sources": [
+      "session_vs_token.md"
+    ]
   },
   {
     "question": "JWT를 발급한 서버가 로그아웃 처리를 어떻게 할 수 있나요?",
-    "expected_source": "session_vs_token.md",
-    "reference": "토큰 방식은 발급된 토큰을 서버가 강제로 무효화하기 어렵다는 단점이 있어, 만료 시간을 짧게 잡고 재발급 절차를 두는 방식으로 보완한다."
+    "reference": "토큰 방식은 발급된 토큰을 서버가 강제로 무효화하기 어렵다는 단점이 있어, 만료 시간을 짧게 잡고 재발급 절차를 두는 방식으로 보완한다.",
+    "expected_sources": [
+      "session_vs_token.md"
+    ]
   },
   {
     "question": "FastAPI에서 비동기 처리가 왜 유리한가요?",
-    "expected_source": "fastapi.md",
-    "reference": "FastAPI는 ASGI 기반이라 I/O 대기 중에도 다른 요청을 처리할 수 있어, DB 조회나 LLM API 호출처럼 지연 시간이 긴 I/O 바운드 작업에서 처리량을 높일 수 있다. 다만 CPU 바운드 작업에는 비동기가 자동으로 이점을 주지 않는다."
+    "reference": "FastAPI는 ASGI 기반이라 I/O 대기 중에도 다른 요청을 처리할 수 있어, DB 조회나 LLM API 호출처럼 지연 시간이 긴 I/O 바운드 작업에서 처리량을 높일 수 있다. 다만 CPU 바운드 작업에는 비동기가 자동으로 이점을 주지 않는다.",
+    "expected_sources": [
+      "fastapi.md",
+      "async_sync.md"
+    ]
   },
   {
     "question": "비동기 처리와 멀티스레딩은 같은 개념인가요?",
-    "expected_source": "async_sync.md",
-    "reference": "비동기 처리는 이벤트 루프를 통해 단일 스레드에서 여러 작업을 번갈아 처리하는 구조로, 여러 스레드를 만드는 것이 아니라 하나의 스레드가 대기 시간을 효율적으로 활용하는 방식이다."
+    "reference": "비동기 처리는 이벤트 루프를 통해 단일 스레드에서 여러 작업을 번갈아 처리하는 구조로, 여러 스레드를 만드는 것이 아니라 하나의 스레드가 대기 시간을 효율적으로 활용하는 방식이다.",
+    "expected_sources": [
+      "async_sync.md"
+    ]
   },
   {
     "question": "I/O 바운드 작업과 CPU 바운드 작업에서 비동기 처리의 효과 차이는 무엇인가요?",
-    "expected_source": "async_sync.md",
-    "reference": "비동기 처리는 I/O 바운드 작업에서 큰 이점을 준다. 반면 CPU 바운드 작업에는 이점을 주지 않는데, 이벤트 루프가 하나의 스레드로 동작하기 때문에 무거운 연산이 그 스레드를 계속 점유하면 다른 작업이 처리되지 못한다."
+    "reference": "비동기 처리는 I/O 바운드 작업에서 큰 이점을 준다. 반면 CPU 바운드 작업에는 이점을 주지 않는데, 이벤트 루프가 하나의 스레드로 동작하기 때문에 무거운 연산이 그 스레드를 계속 점유하면 다른 작업이 처리되지 못한다.",
+    "expected_sources": [
+      "async_sync.md"
+    ]
   },
   {
     "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
-    "expected_source": "fastapi.md",
-    "reference": "DB 세션 관리나 인증 토큰 검증처럼 여러 엔드포인트에서 반복되는 로직을 Depends로 분리해서, 엔드포인트 함수 본문에서 반복 코드를 줄일 수 있다."
+    "reference": "DB 세션 관리나 인증 토큰 검증처럼 여러 엔드포인트에서 반복되는 로직을 Depends로 분리해서, 엔드포인트 함수 본문에서 반복 코드를 줄일 수 있다.",
+    "expected_sources": [
+      "fastapi.md"
+    ]
   },
   {
     "question": "Spring의 의존성 주입(DI) 방식은 FastAPI와 어떻게 비교되나요?",
-    "expected_source": "spring.md",
-    "reference": "Spring에서는 @Autowired로 의존성을 주입하는데, 이는 FastAPI의 Depends()와 개념적으로 유사하다. 둘 다 객체 생성을 프레임워크에 위임해 결합도를 낮춘다."
+    "reference": "Spring에서는 @Autowired로 의존성을 주입하는데, 이는 FastAPI의 Depends()와 개념적으로 유사하다. 둘 다 객체 생성을 프레임워크에 위임해 결합도를 낮춘다.",
+    "expected_sources": [
+      "spring.md"
+    ]
   },
   {
     "question": "Spring Bean의 기본 스코프는 무엇인가요?",
-    "expected_source": "spring.md",
-    "reference": "Bean은 기본적으로 싱글톤 스코프로 관리되어, 애플리케이션 전체에서 하나의 인스턴스만 생성되고 재사용된다."
+    "reference": "Bean은 기본적으로 싱글톤 스코프로 관리되어, 애플리케이션 전체에서 하나의 인스턴스만 생성되고 재사용된다.",
+    "expected_sources": [
+      "spring.md"
+    ]
   },
   {
     "question": "PostgreSQL에서 인덱스가 쓰기 성능에 미치는 영향은 무엇인가요?",
-    "expected_source": "postgresql_index.md",
-    "reference": "인덱스는 조회 성능을 높이는 대신 쓰기 성능에는 부담을 준다. 데이터가 변경될 때마다 인덱스도 함께 갱신해야 하기 때문에, 자주 조회되지만 쓰기가 드문 컬럼에 인덱스를 거는 것이 일반적인 원칙이다."
+    "reference": "인덱스는 조회 성능을 높이는 대신 쓰기 성능에는 부담을 준다. 데이터가 변경될 때마다 인덱스도 함께 갱신해야 하기 때문에, 자주 조회되지만 쓰기가 드문 컬럼에 인덱스를 거는 것이 일반적인 원칙이다.",
+    "expected_sources": [
+      "postgresql_index.md"
+    ]
   },
   {
     "question": "트랜잭션의 ACID 속성은 무엇인가요?",
-    "expected_source": "transaction.md",
-    "reference": "트랜잭션은 여러 SQL 작업을 하나의 논리적 단위로 묶는 것으로 ACID(원자성, 일관성, 고립성, 지속성) 속성을 보장한다. 모든 작업이 성공하면 COMMIT, 하나라도 실패하면 ROLLBACK된다."
+    "reference": "트랜잭션은 여러 SQL 작업을 하나의 논리적 단위로 묶는 것으로 ACID(원자성, 일관성, 고립성, 지속성) 속성을 보장한다. 모든 작업이 성공하면 COMMIT, 하나라도 실패하면 ROLLBACK된다.",
+    "expected_sources": [
+      "transaction.md"
+    ]
   },
   {
     "question": "Docker 컨테이너와 가상머신의 차이는 무엇인가요?",
-    "expected_source": "docker.md",
-    "reference": "가상머신은 하드웨어 자체를 가상화해 각각 별도의 OS를 띄우지만, 컨테이너는 호스트 OS의 커널을 공유하면서 프로세스 수준에서 격리되기 때문에 훨씬 가볍고 빠르게 실행된다."
+    "reference": "가상머신은 하드웨어 자체를 가상화해 각각 별도의 OS를 띄우지만, 컨테이너는 호스트 OS의 커널을 공유하면서 프로세스 수준에서 격리되기 때문에 훨씬 가볍고 빠르게 실행된다.",
+    "expected_sources": [
+      "docker.md"
+    ]
   },
   {
     "question": "Dockerfile의 레이어 캐싱은 어떻게 동작하나요?",
-    "expected_source": "docker.md",
-    "reference": "이미지는 여러 레이어로 구성되는데, 각 레이어는 Dockerfile의 한 명령어에 대응하며 캐싱되어 재빌드 시 변경되지 않은 레이어는 재사용된다."
+    "reference": "이미지는 여러 레이어로 구성되는데, 각 레이어는 Dockerfile의 한 명령어에 대응하며 캐싱되어 재빌드 시 변경되지 않은 레이어는 재사용된다.",
+    "expected_sources": [
+      "docker.md"
+    ]
   },
   {
     "question": "HTTP 401과 403 상태 코드의 차이는 무엇인가요?",
-    "expected_source": "http.md",
-    "reference": "401은 인증 실패, 403은 권한 부족을 나타내며 이 둘은 자주 혼동된다."
+    "reference": "401은 인증 실패, 403은 권한 부족을 나타내며 이 둘은 자주 혼동된다.",
+    "expected_sources": [
+      "http.md"
+    ]
   },
   {
     "question": "JWT를 HTTP 요청에 실어 보낼 때 어떤 헤더를 사용하나요?",
-    "expected_source": "http.md",
-    "reference": "인증이 필요한 요청에서는 일반적으로 Authorization: Bearer 형태의 헤더에 Access Token을 담아 전달한다."
+    "reference": "인증이 필요한 요청에서는 일반적으로 Authorization: Bearer 형태의 헤더에 Access Token을 담아 전달한다.",
+    "expected_sources": [
+      "http.md"
+    ]
   },
   {
     "question": "캐시 무효화는 왜 어려운 문제로 여겨지나요?",
-    "expected_source": "caching.md",
-    "reference": "캐시 무효화는 원본 데이터가 변경됐을 때 캐시된 값도 함께 갱신하거나 삭제하는 것으로, 제대로 처리하지 않으면 사용자가 오래된 데이터를 보게 되는 문제가 생긴다."
+    "reference": "캐시 무효화는 원본 데이터가 변경됐을 때 캐시된 값도 함께 갱신하거나 삭제하는 것으로, 제대로 처리하지 않으면 사용자가 오래된 데이터를 보게 되는 문제가 생긴다.",
+    "expected_sources": [
+      "caching.md"
+    ]
   },
   {
     "question": "JWT 블랙리스트 관리에 어떤 저장소가 흔히 사용되나요?",
-    "expected_source": "caching.md",
-    "reference": "JWT 블랙리스트나 세션 저장소로도 Redis가 흔히 쓰인다."
+    "reference": "JWT 블랙리스트나 세션 저장소로도 Redis가 흔히 쓰인다.",
+    "expected_sources": [
+      "caching.md",
+      "jwt.md"
+    ]
   },
   {
     "question": "JWT를 쿠키에 저장하면 CORS 설정에서 무엇을 신경 써야 하나요?",
-    "expected_source": "cors.md",
-    "reference": "인증 토큰을 쿠키에 저장해 다른 출처로 요청을 보내는 경우, 클라이언트에서는 credentials: include, 서버에서는 Access-Control-Allow-Credentials: true를 함께 설정해야 인증 정보가 포함된 요청이 정상적으로 처리된다."
+    "reference": "인증 토큰을 쿠키에 저장해 다른 출처로 요청을 보내는 경우, 클라이언트에서는 credentials: include, 서버에서는 Access-Control-Allow-Credentials: true를 함께 설정해야 인증 정보가 포함된 요청이 정상적으로 처리된다.",
+    "expected_sources": [
+      "cors.md",
+      "jwt.md"
+    ]
   }
 ]
