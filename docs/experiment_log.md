@@ -354,3 +354,111 @@ Q2는 `jwt.md`(정답)와 `oauth.md`("JWT와의 관계" 문단)가 모두 "Acces
 - Retrieval 평가 전용 질문 세트를 새로 구성해 표본 확대 (Calibration Set은 Judge 평가용으로 목적이 다르므로 재사용하지 않음) - 예: JWT, OAuth, Session, Docker, Spring, HTTP, CORS, Cache 등 KB 11개 주제를 고르게 커버하는 질문들로 별도 세트 작성
 - README/Key Findings에 "Retrieval 관련 실험들이 공통적으로 KB 규모·구성의 중요성을 가리켰다"는 발견을 핵심 항목으로 반영
 - Project Outcomes에는 "KB 확장 후 재실험 결과, 구분이 어려운 케이스에서 Gemini Embedding이 더 안정적인 경향을 관찰함(표본 제한적, 추가 검증 필요)"으로 조건부 반영
+
+---
+
+## 2026-07-14 - Retrieval 평가 전용 질문 세트 구축 및 실행
+
+### 배경
+Context Precision/Embedding 비교의 기존 표본(Calibration Set 재사용, 5개 질문)이 결론을 일반화하기엔 작다는 한계를 인식. KB 11개 주제를 고르게 커버하고, KB에 실제로 심어둔 교차 언급(oauth-jwt, session_vs_token-jwt, async_sync-fastapi, spring-fastapi, http-jwt, caching-jwt, cors-jwt)을 겨냥한 혼동 질문을 포함한 전용 평가셋을 새로 구축.
+
+### 구성
+`tests/fixtures/retrieval_eval_set.json`, 20문항. 각 항목은 `question`, `expected_source`(검증용, RAGAS에는 미사용), `reference`(Context Precision 계산용 이상적 답변)로 구성. KB 11개 주제 기본 질문 + 혼동 질문 조합.
+
+### 실행 결과
+`scripts/run_retrieval_eval.py`로 20문항 전체를 Top-1 source 정확도, Faithfulness, Context Precision 세 지표로 동시 측정.
+
+- Top-1 source 정확도: 16/20 (80.0%)
+- 평균 Faithfulness: 0.8125
+- 평균 Context Precision: 0.8500
+
+이전 5문항 표본(모두 만점)보다 훨씬 풍부한 분포가 나타남, 표본을 늘린 효과가 실제로 확인됨.
+
+### MISS 4건 분석
+
+| 질문 | expected | 실제 top-1 | faithfulness/precision | 판정 |
+|---|---|---|---|---|
+| FastAPI 비동기 처리 | fastapi.md | async_sync.md | 1.0000/1.0000 | 라벨 설계 문제(주제가 겹침) |
+| 트랜잭션 ACID | postgresql.md | oauth.md | 0.0000/0.0000 | 실제 검색 실패 |
+| JWT 블랙리스트 저장소 | caching.md | jwt.md | 1.0000/1.0000 | 라벨 설계 문제(jwt.md에도 관련 문장 있음) |
+| JWT 쿠키 저장과 CORS | cors.md | jwt.md | 1.0000/1.0000 | 라벨 설계 문제(질문이 JWT를 먼저 언급) |
+
+4건 중 3건은 검색 실패가 아니라, 질문 자체가 두 문서 모두에 걸쳐 있는데 `expected_source`를 하나로만 좁게 설계한 결과였음. 이는 faithfulness/context_precision이 해당 3건에서 모두 만점이라는 사실로 뒷받침됨. 진짜 문제는 "트랜잭션 ACID" 1건뿐 - 의미상 무관한 oauth.md가 검색된 것은 재현성 확인이 필요한 이상 사례.
+
+### 결론
+1. 질문 세트를 5개에서 20개로 확대하자 그동안 가려져 있던 KB 설계의 미묘한 문제(정답이 하나가 아닌 질문에 단일 라벨을 부여한 것)가 드러남
+2. Top-1 source 정확도만으로 판단하면 80%로 낮아 보이지만, 실제 검색 실패는 20건 중 1건(트랜잭션 ACID)뿐이었음 - 단일 지표만으로 결론 내리지 않고 faithfulness/context_precision을 함께 봐야 하는 이유를 실증
+3. "트랜잭션 ACID → oauth.md" 사례는 KB 규모가 여전히 크지 않은 상태에서 발생한 이상 검색으로, 원인 규명 및 재현 여부 확인이 필요
+
+### Action Item
+- "트랜잭션 ACID → oauth.md" 케이스 재현 여부 확인 (동일 질문 재실행, 안 되면 임베딩 유사도 직접 확인)
+- expected_source가 실제로는 복수 문서에 걸쳐 있는 3개 질문(FastAPI 비동기, JWT 블랙리스트, JWT-CORS)은 `expected_sources`(복수) 필드로 재설계하거나, 해당 질문을 더 명확히 한 문서만 가리키도록 수정
+- 이 세트로 임베딩 비교(ko-sroberta vs Gemini)를 재실행해 표본 확대 효과를 Embedding 비교에도 반영
+
+---
+
+## 2026-07-15 (계속) - "트랜잭션 ACID" 검색 오류 재현 확인
+
+### 가설
+직전 실험에서 발견한 "트랜잭션의 ACID 속성은 무엇인가요?" 질문이 postgresql.md가 아닌 oauth.md를 1순위로 반환한 것이 우연인지, 재현되는 문제인지 확인한다.
+
+### 방법
+동일 질문으로 `retriever.invoke()`를 3회 연속 실행, 매번 상위 3개 결과를 비교.
+
+### 결과
+3회 모두 동일하게 재현됨: 1순위 oauth.md, 2순위 http.md, 3순위 postgresql.md(단, 정답 chunk가 아닌 "트랜잭션 고립 수준" chunk).
+
+### 원인 분석
+postgresql.md의 정답 chunk(트랜잭션 정의, ACID 속성 설명)는 상위 3위 안에도 들지 못함. 3순위로 나온 것은 같은 파일의 다른 chunk(고립 수준 관련)였음. 즉 postgresql.md 자체가 완전히 무관하게 취급된 게 아니라, 파일 내부에서도 정답 chunk보다 다른 chunk가 우선 검색됨.
+
+postgresql.md는 Day 1 원칙("파일당 주제 하나")을 지켰다고 판단했으나, 실제로는 "인덱스"와 "트랜잭션"이라는 두 개의 하위 주제를 한 파일에 담고 있었음. 이는 KB 확장 시 주제 분리 기준을 파일 단위로만 적용했고, 파일 내 chunk 단위의 주제 응집성은 별도로 검토하지 않았던 데서 비롯된 것으로 판단됨.
+
+### 결론
+1. 이 오류는 일시적 변동이 아니라 재현 가능한 Retrieval 문제임을 확인
+2. Day 1에서 확립한 "파일당 주제 하나" 원칙이, 실제로는 "chunk당 주제 하나"까지 세밀하게 적용되지 않으면 불완전할 수 있음을 새로 발견
+3. oauth.md가 왜 이 질문에 높은 유사도를 받았는지(표면적 문장 구조 유사성 추정)는 임베딩 벡터를 직접 비교하지 않는 한 확정할 수 없어, 추정 수준으로만 기록
+
+### Action Item
+- `postgresql.md`를 인덱스 전용 파일과 트랜잭션 전용 파일로 분리하고, 재인덱싱 후 ACID 단일 질문 및 20문항 평가셋으로 개선 전후를 비교
+- KB 전체 문서에 대해 “파일당 주제 하나”뿐 아니라 “chunk당 주제 하나”까지 점검하는 절차를 추가할지 검토
+- 나머지 3개는 top-1 exact-match 기준에서는 MISS였지만, 검색된 top-k context가 reference를 충분히 뒷받침했다. 단일 `expected_source`가 지나치게 좁았을 가능성이 높으므로 `expected_sources` 복수 라벨로 재설계
+
+---
+
+## 2026-07-15 (계속) - postgresql.md 분리 및 개선 전후 비교
+
+### 배경
+"트랜잭션 ACID" 질문 검색 오류가 3회 재현되어 우연이 아님을 확인. 원인 분석 결과, postgresql.md가 "인덱스"와 "트랜잭션"이라는 두 개의 하위 주제를 한 파일에 담고 있어 chunk 단위 주제 응집성이 떨어졌던 것으로 판단. 이를 단일 변수 변경 실험(문서 분리)으로 검증.
+
+### 가설
+postgresql.md를 인덱스 전용 파일과 트랜잭션 전용 파일로 분리하면, ACID 질문의 검색 순위가 개선되고 다른 문항에는 영향이 없을 것이다.
+
+### 방법
+1. postgresql.md를 postgresql_index.md, transaction.md 두 파일로 분리, 원본은 삭제
+2. 두 벡터스토어 컬렉션(ko-sroberta, Gemini Embedding) 모두에서 기존 postgresql.md chunk를 수동으로 제거 (파일 삭제만으로는 로드 스크립트가 자동 삭제하지 못함을 확인 후 조치)
+3. 재인덱싱 후 ACID 단일 질문을 3회 반복 실행해 재현성 확인
+4. Retrieval 평가 세트(20문항) 전체 재실행, 라벨(`expected_source`)을 새 파일명에 맞게 갱신 후 baseline과 비교
+
+### 결과
+
+**ACID 단일 질문**: 개선 전 순위(oauth.md → http.md → postgresql.md 내 Isolation chunk, 정답 chunk는 top-3 밖) → 개선 후 순위(transaction.md가 1순위, 3회 재현). oauth.md는 여전히 2순위로 남아, 두 문서 간 표면적 유사성 자체는 사라지지 않았으나 정답이 최우선으로 검색되는 상태로 개선됨.
+
+**20문항 전체**:
+
+| 지표 | 개선 전 | 개선 후 |
+|---|---|---|
+| Top-1 정확도 | 16/20 (80%) | 17/20 (85%) |
+| 평균 Faithfulness | 0.8125 | 0.8500 |
+| 평균 Context Precision | 0.8500 | 0.9500 |
+
+ACID 질문 1건이 MISS에서 OK로 전환됐고, 나머지 19개 문항 중 검색 순위 또는 평가 지표가 악화된 항목은 없었다. 평가 도중 라벨 갱신 스크립트가 관련 없는 “PostgreSQL 인덱스” 질문의 `expected_source`까지 잘못 치환해 일시적으로 새로운 MISS가 발생했으나, 실제 top-1 검색 결과는 `postgresql_index.md`로 정확했다. 이는 검색 오류가 아닌 평가셋 라벨 오류로 확인해 즉시 수정했다.
+
+### 결론
+1. "chunk당 주제 하나"라는 새 원칙이 실제로 Retrieval 품질을 개선한다는 것이 단일 변수 변경 실험으로 검증됨. 문서를 분리한 것 외에 다른 조건은 바꾸지 않았고, 개선이 ACID 질문에 국한되고 다른 문항에는 부작용이 없었다는 것으로 인과관계를 뒷받침함
+2. oauth.md와의 표면적 유사성은 문서 분리로 해소되지 않았음. 근본 원인(왜 ACID/트랜잭션 설명과 OAuth 설명이 임베딩 공간에서 유사하게 취급되는지)은 여전히 불확실하며, 문서 분리는 "정답이 상위로 올라오게" 만든 것이지 "혼동 자체를 없앤" 것은 아님
+3. Retrieval 평가 세트 구축 과정에서 라벨 설계 실수가 반복적으로 발생함(이번 오작동 포함, 이전 3개 MISS도 동일한 패턴). 평가 세트의 라벨 정확성 자체도 별도로 관리가 필요한 자산임을 확인
+
+### Action Item
+- KB의 다른 문서들도 "chunk당 주제 하나" 기준으로 재점검 (특히 여러 하위 개념을 다루는 문서가 있는지)
+- Retrieval 평가 세트의 나머지 3개 MISS(FastAPI/async_sync, JWT/caching, JWT/cors)는 `expected_sources`(복수) 필드로 재설계
+- 임베딩 비교(ko-sroberta vs Gemini)를 이 20문항 세트로 재실행해 이전 5문항 기준 결과와 비교
