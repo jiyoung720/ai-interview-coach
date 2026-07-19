@@ -31,7 +31,7 @@
     "question": "JWT를 발급한 서버가 로그아웃 처리를 어떻게 할 수 있나요?",
     "reference": "토큰 방식은 발급된 토큰을 서버가 강제로 무효화하기 어렵다는 단점이 있어, 만료 시간을 짧게 잡고 재발급 절차를 두는 방식으로 보완한다.",
     "expected_sources": [
-      "session_vs_token.md"
+      "jwt_logout_invalidation.md"
     ]
   },
   {
@@ -67,14 +67,14 @@
     "question": "Spring의 의존성 주입(DI) 방식은 FastAPI와 어떻게 비교되나요?",
     "reference": "Spring에서는 @Autowired로 의존성을 주입하는데, 이는 FastAPI의 Depends()와 개념적으로 유사하다. 둘 다 객체 생성을 프레임워크에 위임해 결합도를 낮춘다.",
     "expected_sources": [
-      "spring.md"
+      "spring_di.md"
     ]
   },
   {
     "question": "Spring Bean의 기본 스코프는 무엇인가요?",
     "reference": "Bean은 기본적으로 싱글톤 스코프로 관리되어, 애플리케이션 전체에서 하나의 인스턴스만 생성되고 재사용된다.",
     "expected_sources": [
-      "spring.md"
+      "spring_bean_scope.md"
     ]
   },
   {
