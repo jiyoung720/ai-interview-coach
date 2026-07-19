@@ -81,6 +81,7 @@ flowchart TB
 
 - **Retrieval 관련 실험들이 모두 같은 결론으로 수렴함**: Semantic Retrieval 검증(Day 1), Context Precision 단독 실험, 첫 Embedding 비교, KB 확장 후 재실험까지 서로 다른 목적의 실험에서도 동일한 패턴이 반복적으로 관찰됨. KB가 2개 문서일 때는 Context Precision과 Embedding 비교가 항상 만점이라 변별력을 갖지 못했고, 11개로 확장한 뒤에야 Retrieval 관련 지표들이 실제 차이를 드러내기 시작함.
 - **혼합 주제 chunk는 유사도 점수를 왜곡시킬 수 있음**: 여러 주제가 섞인 긴 chunk가 단일 주제의 짧은 chunk보다 더 높은 유사도를 받는 경우를 실측으로 확인. KB는 파일당 주제 하나로 작성하도록 반영.
+- **문서 분리의 단위는 파일 크기가 아니라 "완결된 근거 단위(retrieval unit)"**: Retrieval 전용 평가셋(20문항)으로 재검증한 결과, 독립된 개념이 나열된 문서(`postgresql.md`, `spring.md`)는 하위 주제별로 분리할수록 검색 품질이 개선됐지만, 비교형 문서(`session_vs_token.md`)는 반대로 정의·차이·확장성 비교를 한 chunk에 유지해야 품질이 좋아짐을 확인. 이 원칙을 반영해 KB를 재구성한 뒤 Top-1 정확도 100%(20/20), Faithfulness 0.9708, Context Precision 1.0000까지 개선.
 - **Retriever 성공이 Faithfulness를 보장하지는 않음**: 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. RAGAS로 정량화한 결과, Calibration Set 17개 케이스의 평균 Faithfulness는 0.4412. bad/average 카테고리에서 편차가 크게 나타나 Judge의 technical_score와는 다른 것을 측정하는 지표임을 확인.
 - **KB 확장 후 임베딩 비교에서 처음으로 유의미한 차이 관찰**: KB가 2개 문서였을 때는 `ko-sroberta-multitask`와 Gemini Embedding이 항상 동일한 결과를 냈으나, 11개로 확장해 "관련 있지만 핵심은 아닌" 문서를 섞자 특정 질문(Access/Refresh Token 관련)에서 두 임베딩의 결과가 갈림. Gemini Embedding이 해당 케이스에서 더 안정적인 Retrieval 결과를 반환함. 다만 표본이 작아 일반화하기는 이르다.
 - **Judge Calibration으로 프롬프트/테스트 데이터 결함을 구분해냄**: Judge 채점을 그대로 신뢰하지 않고 Calibration Set(17개)으로 검증. 실패 원인을 분석한 결과 Judge가 아니라 Calibration Set 자체의 설계 결함(동일 답변에 서로 다른 기대치 부여)이 원인이었음을 발견, 재설계를 통해 정확도를 52.9%에서 94.1%로 향상시킴.
@@ -92,10 +93,10 @@ flowchart TB
 - **Backend**: FastAPI
 - **패키지 관리**: uv
 - **Framework**: LangChain (LCEL) → LangGraph (StateGraph) 마이그레이션
-- **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 11개 문서
+- **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 18개 문서 (retrieval unit 기준으로 재구성)
 - **Embedding**: `ko-sroberta-multitask` (기본), Gemini Embedding(`gemini-embedding-001`, 비교 실험용)
 - **LLM**: Gemini 3.5 Flash (structured output)
-- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(94.1%), RAGAS Faithfulness(평균 0.4412)와 Context Precision(0.8000), Embedding 비교
+- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(94.1%), RAGAS Faithfulness(Calibration Set 기준 평균 0.4412), Retrieval 전용 평가셋(20문항: Top-1 100%·Faithfulness 0.9708·Context Precision 1.0000), Embedding 비교
 
 ## Project Outcomes
 
@@ -106,6 +107,7 @@ flowchart TB
 - technical_score 기반 Agent를 구현하고, Learning Tip이 생성한 topic을 Followup이 이어받도록 설계하여 Agent 출력의 일관성을 확보
 - RAGAS(Faithfulness, Context Precision)를 도입하고, KB 규모(2개에서 11개로)가 지표 변별력에 미치는 영향을 실험으로 확인
 - 동일 KB에 두 임베딩(`ko-sroberta-multitask`, Gemini Embedding)을 각각 인덱싱해 비교 실험 파이프라인 구축
+- Retrieval 전용 평가셋(20문항)을 구축하고, 문서 분리 전략을 "완결된 근거 단위" 기준으로 재설계해 Top-1 정확도 100%·Faithfulness 0.9708까지 개선
 
 ## API
 
