@@ -599,3 +599,34 @@ session_vs_token.md를 세션·토큰·확장성 문서로 분리한 결과, 단
 - 정확한 source 검색만으로 충분하지 않음
 - top-k context가 reference의 모든 핵심 주장을 뒷받침해야 함
 - 평가셋 라벨도 코드처럼 검증·관리해야 함
+
+---
+
+## 2026-07-20 (계속) - Embedding 비교 재실행 (Retrieval 평가셋 20문항 기준)
+
+### 배경
+기존 임베딩 비교(2026-07-14)는 Calibration Set의 good 답변 5개 표본으로 진행됐고, "구분이 어려운 케이스에서 Gemini Embedding이 더 안정적"이라는 결론을 냈으나 표본이 작아 일반화하기는 이르다고 스스로 명시했었음. Retrieval Unit 재설계로 KB baseline(18개 문서)을 확정한 뒤, 이 baseline을 고정한 채로 20문항 평가셋을 이용해 Embedding 비교를 재실행.
+
+### 가설
+표본을 5개에서 20개로 늘리면, 이전에 관찰됐던 "Gemini Embedding이 더 안정적"이라는 경향이 재현되거나 강화될 것이다.
+
+### 방법
+`scripts/compare_embeddings_retrieval_eval.py`를 새로 작성(기존 `compare_embeddings.py`의 이중 리트리버 비교 구조 + `run_retrieval_eval.py`의 20문항 `expected_sources` 기반 평가 로직을 결합). 실행 전 ko-sroberta·Gemini 두 컬렉션 모두 현재 KB(18개 문서, 29개 chunk)와 이미 동기화돼 있음을 확인(재인덱싱 불필요). 20문항 전체를 두 리트리버 각각에 대해 Top-1 정확도·Faithfulness·Context Precision으로 평가.
+
+### 결과
+
+| | Top-1 정확도 | Faithfulness | Context Precision |
+|---|---|---|---|
+| ko-sroberta-multitask | 100.0% (20/20) | 0.9708 | 1.0000 |
+| Gemini Embedding | 95.0% (19/20) | 0.9500 | 1.0000 |
+
+두 임베딩의 top-1 source가 갈린 질문 3개 중 2개("FastAPI 비동기 처리", "JWT 쿠키+CORS")는 둘 다 `expected_sources`에 포함되는 정답이라 실질적 문제 없음. 진짜 오답은 1건: "JWT를 HTTP 요청에 실어 보낼 때 어떤 헤더를 사용하나요?" 질문에서 Gemini Embedding이 `http.md`(정답) 대신 `cors.md`를 1순위로 반환(Faithfulness 0.5000).
+
+### 결론 - 기존 결론이 뒤집힘
+1. **가설 기각.** 표본을 5개→20개로 늘리자 정반대 결과가 나왔다. 5문항 표본에서는 Gemini Embedding이 더 안정적으로 관찰됐으나, 20문항에서는 ko-sroberta가 Top-1·Faithfulness 모두 더 높고, Gemini는 새로운 실패 사례(`http.md` 질문을 `cors.md`로 혼동)를 보임.
+2. 이는 "표본이 작아 일반화하기는 이르다"고 스스로 명시했던 이전 결론의 한계가 실제로 확인된 사례. 작은 표본에서 관찰된 패턴을 그대로 일반화하면 안 된다는 것을 직접 증명함.
+3. 다만 20문항도 절대적으로 큰 표본은 아니므로, 이번 결과 역시 최종 진리로 단정하지 않는다. 현재까지 공정한 요약은 "이 KB·이 평가셋 기준으로는 ko-sroberta-multitask가 Gemini Embedding보다 근소하게 우세하다" 정도.
+
+### Action Item
+- Gemini Embedding이 `http.md` 질문에서 `cors.md`로 혼동한 원인(임베딩 벡터 유사도 직접 비교)은 추가 분석하지 않음. 현재 결론(ko-sroberta 채택)을 바꿀 정도의 문제가 아니라 우선순위 낮음으로 판단
+- README/명세서의 Embedding 비교 서술을 "20문항 기준 최종 결과(ko-sroberta 채택)"로 갱신하고, 기존 5문항 결론은 "초기 소표본에서의 관찰이었으며 이후 뒤집힘"으로 명확히 구분해 남김
