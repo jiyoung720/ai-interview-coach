@@ -1,0 +1,22 @@
+# 빌드 컨텍스트에서 제외할 것들.
+# .venv(1.5GB)와 chroma_db를 빼지 않으면 이미지 빌드가 불필요하게 느려지고 커진다.
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# 로컬 데이터. 컨테이너에서는 volume으로 마운트한다
+chroma_db/
+data/uploads/
+
+# 비밀값. 이미지에 굽지 않고 런타임에 환경변수로 주입한다
+.env
+
+.git/
+.gitignore
+docs/
+tests/
+README.md
+Dockerfile
+.dockerignore
+docker-compose.yml

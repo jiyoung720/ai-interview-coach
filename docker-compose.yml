@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    image: ai-interview-coach:latest
+    ports:
+      - "8000:8000"
+    # 비밀값을 이미지에 굽지 않고 런타임에 주입한다 (.env는 .dockerignore로 제외돼 있음)
+    env_file:
+      - .env
+    volumes:
+      # 벡터 인덱스와 업로드 파일을 컨테이너 밖에 보존.
+      # 이게 없으면 컨테이너를 다시 만들 때마다 인덱싱이 날아간다
+      - chroma_data:/app/chroma_db
+      - uploads_data:/app/data/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 5s
+      # 최초 기동 시 KB 인덱싱이 돌 수 있어 시작 유예를 넉넉히 준다
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  uploads_data:

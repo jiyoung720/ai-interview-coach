@@ -684,3 +684,61 @@ State의 `next_action`을 응답 필드로 내보내도록 했다. 어느 경로
 ### Action Item
 - README/명세서의 Agent 구조도, State 스키마, API 응답 스펙을 v3 기준으로 갱신
 - 멀티턴 루프(사이클 도입)는 Future Work 최우선 항목으로 유지
+
+---
+
+## 2026-07-21 (계속) - Docker 패키징: 이미지 크기 10.9GB에서 3.79GB로
+
+### 배경
+Phase 8(배포) 첫 단계로 Docker 이미지를 만들고 Compose로 로컬 실행을 확인. 최적화를 미리 추측해서 적용하기보다, **일단 `uv.lock` 그대로 빌드해 크기를 실측한 뒤 그 데이터로 판단**하는 순서를 택했다(이 프로젝트에서 반복해온 방식).
+
+### 1차 빌드 결과 - 10.9GB
+빌드 자체는 성공했으나 이미지가 10.9GB. `docker history`로 레이어를 보니 의존성 설치 레이어 하나가 6.04GB였고, 컨테이너 내부를 조회한 결과 원인이 명확했다.
+
+| 패키지 | 크기 | 실제 필요 여부 |
+|---|---|---|
+| `nvidia` (CUDA 라이브러리) | 2.9GB | 불필요 (배포 대상에 GPU 없음) |
+| `triton` (GPU 커널 컴파일러) | 652MB | 불필요 |
+| `torch` | 914MB | 필요 |
+| 기타(pyarrow, scipy, transformers 등) | ~1.2GB | 필요 |
+
+`uv.lock`이 `sys_platform == 'linux'` 조건으로 torch에 CUDA 스택 전체(`cuda-toolkit`, `nvidia-cudnn-cu13` 등)를 딸려오게 잡고 있었다. **3.55GB가 전혀 쓰이지 않는 용량이었다.**
+
+### 설계 결정 - CPU torch 설정을 pyproject.toml이 아니라 Dockerfile에만 둠
+처음에는 `pyproject.toml`에 `sys_platform == 'linux'` 마커로 CPU torch를 지정하려 했으나 철회했다. **Google Colab도 Linux**이므로, 프로젝트 레벨에 이 설정을 박으면 Colab에서 GPU를 쓰려 할 때 CPU torch가 설치되는 부작용이 생긴다(메인 프로젝트 `korean-chatbot` 학습에 Colab GPU를 사용 중). CPU 전용 제약이 필요한 대상은 EC2로 갈 이미지 하나뿐이므로 Dockerfile 안에서만 처리했다.
+
+### uv 동작 관련 발견 - 첫 시도 (실패)
+Dockerfile에서 `tool.uv.sources`로 torch를 CPU 인덱스로 지정하고 `uv lock`을 실행했으나, **재빌드 후에도 nvidia/triton이 그대로 남아 있었다.** 빌드는 에러 없이 성공했고 이미지 크기도 10.9GB로 동일해, 성공 여부를 크기로 확인하지 않았다면 놓쳤을 실패다.
+
+전체 재빌드를 반복하지 않고 원인을 찾기 위해, 설치는 생략하고 **의존성 해결(resolve)만 컨테이너에서 반복 실행**하며 확인했다. 그 결과 두 가지를 알게 됐다.
+
+1. **`tool.uv.sources`는 직접 의존성에만 적용된다.** `torch`는 `sentence-transformers`를 통한 전이 의존성이라 지정이 무시됐다. torch를 `[project.dependencies]`에 직접 추가해야 적용된다.
+2. **인덱스는 `explicit = true`로 제한해야 한다.** 그러지 않으면 `requests` 같은 무관한 패키지까지 pytorch 인덱스에서 찾으려다 resolve가 실패한다(실제로 `uv add --index`로 시도했을 때 이 에러가 발생).
+
+두 조건을 함께 적용하자 `torch 2.13.0` → `2.13.0+cpu`로 바뀌고 nvidia 15개 패키지와 triton이 모두 제거됐다.
+
+### 2차 빌드 결과
+
+| | 1차 | 2차 |
+|---|---|---|
+| 이미지 크기 | 10.9GB | **3.79GB** |
+| `.venv` | 5.7GB | 1.9GB |
+| nvidia/triton | 존재 | 없음 |
+
+### 실행 검증
+- Compose 기동 확인
+- 최초 기동 시 entrypoint가 빈 컬렉션을 감지해 KB 자동 인덱싱(18개 문서, 29 chunk)
+- 재시작 후 "chunk 29개 확인, 인덱싱 건너뜀" 로그 확인 → **volume 영속화 정상 동작**
+- `GET /` 200, `POST /evaluate-answer`로 0점 답변 전송 시 `next_action: fundamentals_explained` 정상 분기
+
+### 추가 발견 - 아키텍처 불일치 (EC2 단계 선행 확인 필요)
+빌드된 이미지가 **arm64**(Apple Silicon)다. EC2 표준 인스턴스(t2.micro, t3.small)는 x86_64라 **이 이미지는 그대로 실행되지 않는다.** 배포 시 `--platform linux/amd64`로 빌드하거나 Graviton(t4g) 인스턴스를 선택해야 한다. 또한 amd64로 빌드하면 CUDA 스택이 다시 개입할 수 있으므로, CPU torch 설정이 amd64에서도 동작하는지 재확인이 필요하다.
+
+### 결론
+1. "일단 만들고 재본 뒤 최적화한다"는 순서가 유효했다. 미리 추측했다면 CUDA가 3.55GB를 차지한다는 것도, 첫 최적화 시도가 조용히 실패했다는 것도 알 수 없었다
+2. 빌드 성공 여부만으로 최적화 적용을 확인하면 안 된다. 1차 최적화는 에러 없이 빌드됐지만 실제로는 적용되지 않았고, **이미지 크기를 측정했기 때문에** 발견할 수 있었다
+3. 전체 재빌드 대신 resolve 단계만 분리해 반복 실행한 것이 원인 규명 시간을 크게 줄였다. 검증 단위를 작게 쪼개는 접근이 여기서도 유효
+
+### Action Item
+- EC2 인스턴스 아키텍처 확정 후 `--platform linux/amd64` 빌드 검증 (Phase 8 ③)
+- 이미지에 포함된 실험용 의존성(`ragas`, `datasets`, `pyarrow` 등)은 서빙에 불필요하므로, 추가 경량화가 필요하면 런타임/실험용 의존성 분리를 검토
