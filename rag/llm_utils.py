@@ -1,3 +1,4 @@
+# structured_output을 안 쓰는 followup_node가 Gemini 응답에서 순수 텍스트만 뽑을 때 사용
 def extract_text(message) -> str:
     """Gemini 3+ 모델은 .content가 문자열이 아니라
     [{'type': 'text', 'text': '...', 'extras': {...}}] 형태의 블록 리스트로 나옴.

@@ -28,7 +28,7 @@ def get_chain_a():
 # --- Chain B: 답변 평가 ---
 
 def get_evaluation_context_chain():
-    """입력: {"question": str, "answer": str} — Prompt 단독/연결 검증용"""
+    """입력: {"question": str, "answer": str}. Prompt 단독/연결 검증용"""
     kb_retriever = get_interview_kb_retriever()
 
     def retrieve_kb_context(inputs: dict) -> str:

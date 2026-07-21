@@ -1,3 +1,4 @@
+# 검색의 인프라를 담당하는 파일 (Chroma 벡터 DB에 연결하고, 검색기(retriever)를 만들어 건네주는 것")
 from functools import lru_cache
 
 from langchain_chroma import Chroma
@@ -23,10 +24,13 @@ def get_user_docs_vectorstore() -> Chroma:
     )
 
 
+# 벡터스토어를 감싸 "쿼리 문자열 -> 관련 문서 목록"을 돌려주는 검색기로 만듦
+# k=3: 유사도 상위 3개만 가져옴 (노드에서 docs가 항상 3개인 이유)
 def get_user_docs_retriever(k: int = 3):
     return get_user_docs_vectorstore().as_retriever(search_kwargs={"k": k})
 
 
+# Chain B가 검색하는 면접 KB 컬렉션. user_docs와 설정은 같고 컬렉션 이름만 다름
 @lru_cache(maxsize=1)
 def get_interview_kb_vectorstore() -> Chroma:
     return Chroma(
@@ -41,12 +45,14 @@ def get_interview_kb_retriever(k: int = 3):
     return get_interview_kb_vectorstore().as_retriever(search_kwargs={"k": k})
 
 
+# 아래는 임베딩 비교 실험 전용. 같은 KB를 Gemini 임베딩으로 인덱싱한 별도 컬렉션이라,
+# ko-sroberta 컬렉션과 완전히 독립적으로 두 임베딩을 나란히 비교할 수 있다.
 INTERVIEW_KB_GEMINI_COLLECTION = "interview_kb_gemini_embedding"
 
 
 @lru_cache(maxsize=1)
 def get_interview_kb_gemini_vectorstore() -> Chroma:
-    from rag.embeddings import get_gemini_embeddings
+    from rag.embeddings import get_gemini_embeddings   # 실험 전용이라 함수 안에서 지연 import
 
     return Chroma(
         collection_name=INTERVIEW_KB_GEMINI_COLLECTION,

@@ -4,6 +4,7 @@ from api.documents import router as documents_router
 from api.evaluations import router as evaluations_router
 from api.questions import router as questions_router
 
+# FastAPI 앱이 라우터 3개를 붙임
 app = FastAPI(title="AI Interview Coach with RAG")
 app.include_router(documents_router)
 app.include_router(questions_router)
