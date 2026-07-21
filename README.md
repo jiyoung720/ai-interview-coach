@@ -158,12 +158,22 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 `followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
 
 ## 실행 방법
- 
+
+### 로컬
 ```bash
 uv sync
 cp .env.example .env  # GEMINI_API_KEY 채우기
 uv run uvicorn app.main:app --reload
 ```
+
+### Docker
+```bash
+cp .env.example .env  # GEMINI_API_KEY 채우기
+docker compose up -d
+```
+최초 기동 시 Interview KB가 자동으로 인덱싱되고(18개 문서, 29 chunk), 이후 재시작에서는 volume에 남아 있는 인덱스를 그대로 사용합니다. `chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
+
+이미지는 CPU 전용 torch를 사용해 3.79GB입니다. 기본 설정으로 빌드하면 배포 대상에 없는 GPU용 CUDA 스택이 3.5GB가량 포함되어 10.9GB가 되는데, 이를 Dockerfile 안에서만 걷어냈습니다. 로컬(macOS)과 Colab(GPU 사용) 환경은 영향을 받지 않도록 `pyproject.toml`은 수정하지 않았습니다.
 
 ## 문서
 
