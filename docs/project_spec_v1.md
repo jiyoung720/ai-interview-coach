@@ -364,9 +364,13 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] **이미지 크기 10.9GB → 3.79GB 감축**: 실측 결과 CUDA 스택(nvidia 2.9GB + triton 652MB)이 포함되어 있었으나 배포 대상에 GPU가 없어 전부 불필요했음. Dockerfile 안에서만 CPU 전용 torch를 쓰도록 처리(로컬 macOS와 Colab GPU 환경에 영향이 가지 않도록 `pyproject.toml`은 수정하지 않음)
 - [ ] **미해결**: 현재 이미지는 arm64(Apple Silicon)로 빌드됨. EC2 표준 인스턴스(x86_64)에서는 실행되지 않으므로 ③ 단계에서 `--platform linux/amd64` 빌드 검증 필요
 
-**② GitHub Actions (CI)**
-- [ ] 푸시 시 Docker 이미지 빌드 + 테스트 자동 실행
-  - 배포 대상이 없어도 구성 가능. 로컬 환경 의존성 문제("내 컴퓨터에서만 됨")를 EC2 이전에 발견하는 것이 목적
+**② GitHub Actions (CI) (완료)**
+- [x] 푸시/PR 시 자동 실행되는 워크플로 구성 (`.github/workflows/ci.yml`), 배포는 하지 않음
+- [x] `test` job: pytest 22개. 분기 로직·그래프 구조·chunking 등 **API 키가 필요 없는 계층**만 검증하도록 설계해 비밀값을 CI에 노출하지 않음
+- [x] `docker-build` job: Dockerfile이 깨끗한 환경(linux/amd64 러너)에서 빌드되는지 확인
+- [x] CUDA 패키지 재유입 검사: 이미지에 nvidia/triton이 포함되면 빌드 실패 처리. ①에서 최적화가 **에러 없이 조용히 풀렸던 전례**가 있어 자동 검사로 고정
+- [x] 스모크 테스트: 컨테이너를 실제로 띄워 헬스체크 응답까지 확인 (KB 인덱싱은 임베딩만 쓰므로 더미 키로 가능)
+- [x] 프로덕션 이미지에서 dev 의존성 제외 (`uv sync --no-dev`)
 
 **③ AWS EC2 수동 배포**
 - [ ] 인스턴스 아키텍처 확정 후 그에 맞는 플랫폼으로 이미지 재빌드
