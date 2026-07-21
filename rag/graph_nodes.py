@@ -74,7 +74,12 @@ def generation_node(state: InterviewState) -> dict:
     return {"generated_questions": result}
 
 
-FOLLOWUP_THRESHOLD = 5  # technical_score가 이 값 미만이면 Learning Tip + Followup 실행
+# technical_score 구간별 분기 경계값.
+# 0~3점: 개념 자체를 모름 -> 기초 개념 설명
+# 4~6점: 부분 이해 -> Learning Tip + Followup
+# 7~10점: 정확히 답함 -> 심화 질문
+FUNDAMENTALS_THRESHOLD = 4   # 이 값 미만이면 기초 개념 설명
+ADVANCED_THRESHOLD = 7       # 이 값 이상이면 심화 질문
 
 # technical_score < 5일 때만 실행
 def learning_tip_node(state: InterviewState) -> dict:
@@ -131,11 +136,58 @@ def followup_node(state: InterviewState) -> dict:
     }
 
 
+def fundamentals_node(state: InterviewState) -> dict:
+    """0~3점 경로. 개념을 거의 모르는 상태이므로 학습 방향 제시(Learning Tip)가 아니라
+    개념 자체를 [Reference] 범위 안에서 설명해준다."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from rag.config import GEMINI_MODEL
+    from rag.prompts import FUNDAMENTALS_PROMPT
+    from rag.schemas import ConceptExplanation
+
+    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    structured_llm = llm.with_structured_output(ConceptExplanation)
+
+    prompt_value = FUNDAMENTALS_PROMPT.invoke({
+        "question": state["question"],
+        "answer": state["answer"],
+        "context": state["context"],
+    })
+    result = structured_llm.invoke(prompt_value)
+
+    return {"next_action": "fundamentals_explained", "concept_explanation": result}
+
+
+def advanced_question_node(state: InterviewState) -> dict:
+    """7~10점 경로. 이미 정확히 답했으므로 보완할 약점이 없다.
+    코칭 대신 한 단계 깊은 심화 질문을 던져 이해의 깊이를 확인한다."""
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    from rag.config import GEMINI_MODEL
+    from rag.prompts import ADVANCED_QUESTION_PROMPT
+    from rag.schemas import AdvancedQuestion
+
+    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    structured_llm = llm.with_structured_output(AdvancedQuestion)
+
+    prompt_value = ADVANCED_QUESTION_PROMPT.invoke({
+        "question": state["question"],
+        "answer": state["answer"],
+        "context": state["context"],
+    })
+    result = structured_llm.invoke(prompt_value)
+
+    return {"next_action": "advanced_question_generated", "advanced_question": result}
+
+
 def decide_next_step(state: InterviewState) -> str:
-    """technical_score가 기준 미만이면 Learning Tip 노드로, 아니면 종료."""
+    """technical_score 구간에 따라 세 경로 중 하나를 고른다."""
     # graph.py의 add_conditional_edges가 호출하는 라우팅 함수.
     # 다른 노드와 달리 State를 갱신하지 않고(반환이 str), 다음에 갈 경로만 문자열로 답함.
     # 분기 조건(technical_score)이 사용자 입력이 아니라 직전에 Gemini가 생성한 값이라는 게 핵심.
-    if state["evaluation_result"].technical_score < FOLLOWUP_THRESHOLD:
-        return "learning_tip"
-    return "end"
+    score = state["evaluation_result"].technical_score
+    if score < FUNDAMENTALS_THRESHOLD:
+        return "fundamentals"
+    if score >= ADVANCED_THRESHOLD:
+        return "advanced"
+    return "learning_tip"

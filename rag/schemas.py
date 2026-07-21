@@ -22,3 +22,17 @@ class LearningTip(BaseModel):
     topic: str                      # 보완할 핵심 주제
     reason: str                     # 왜 이 주제를 공부해야 하는지
     recommended_sections: list[str] # 참고할 KB 부분
+
+
+# fundamentals_node가 반환 (0~3점). 개념을 거의 모르는 상태라 학습 방향 제시보다
+# 개념 자체를 설명해주는 것이 적절하다고 판단해 별도 스키마로 분리
+class ConceptExplanation(BaseModel):
+    concept: str            # 질문이 묻고 있던 핵심 개념
+    explanation: str        # 개념을 처음 접하는 사람 기준의 설명
+    key_points: list[str]   # 꼭 기억해야 할 포인트
+
+
+# advanced_question_node가 반환 (7~10점). 이미 잘 답한 사람에게 더 깊이 파고드는 질문
+class AdvancedQuestion(BaseModel):
+    question: str   # 심화 질문
+    intent: str     # 이 질문으로 무엇을 확인하려는지 (사용자에게 의도를 알려주는 용도)

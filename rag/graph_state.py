@@ -2,7 +2,13 @@
 # 노드가 state["..."]로 읽고 return {"...": ...}로 채우는 모든 키가 여기 모여 있다.
 from typing import TypedDict
 
-from rag.schemas import EvaluationResult, InterviewQuestions, LearningTip
+from rag.schemas import (
+    AdvancedQuestion,
+    ConceptExplanation,
+    EvaluationResult,
+    InterviewQuestions,
+    LearningTip,
+)
 
 
 class InterviewState(TypedDict, total=False):
@@ -25,8 +31,16 @@ class InterviewState(TypedDict, total=False):
     # Chain B: Judge Node가 채움
     evaluation_result: EvaluationResult
 
-    # Agent 확장: technical_score < 5일 때만 채워짐 (병렬이 아니라 learning_tip -> followup 순차 실행)
-    # 이 키들은 없을 수 있어서, api에서 result.get(...)으로 안전하게 꺼냄
-    next_action: str
-    followup_question: str
+    # Agent 확장: technical_score 구간에 따라 셋 중 하나의 경로만 실행되므로,
+    # 나머지 키는 State에 아예 존재하지 않는다. api에서 result.get(...)으로 안전하게 꺼냄
+    next_action: str    # 어느 경로가 실행됐는지 기록 (응답 확인 및 성능 측정 시 분기 구분용)
+
+    # 0~3점 경로
+    concept_explanation: ConceptExplanation
+
+    # 4~6점 경로 (learning_tip -> followup 순차 실행. 병렬이 아님)
     learning_tip: LearningTip
+    followup_question: str
+
+    # 7~10점 경로
+    advanced_question: AdvancedQuestion

@@ -4,8 +4,10 @@
 from langgraph.graph import END, START, StateGraph
 
 from rag.graph_nodes import (
+    advanced_question_node,
     decide_next_step,
     followup_node,
+    fundamentals_node,
     generation_node,
     judge_node,
     learning_tip_node,
@@ -51,27 +53,43 @@ def build_chain_a_graph():
 
 
 def build_interview_agent_graph():
-    """Chain B + Agent v2: Retrieval → Judge → Decision → (< 5) → Learning Tip → Followup → END
+    """Chain B + Agent v3: Retrieval → Judge → Decision → 점수 구간별 3분기 → END
 
-    Learning Tip이 먼저 실행되어 핵심 약점(topic)을 정하고,
+    0~3점: Fundamentals(기초 개념 설명)
+    4~6점: Learning Tip → Followup (순차)
+    7~10점: Advanced Question(심화 질문)
+
+    v2까지는 "5점 미만이면 코칭, 아니면 아무것도 안 함"이라 분기가 단조롭고
+    한쪽 경로가 비어 있었다. 구간별로 필요한 코칭의 종류가 다르다고 보고
+    세 갈래로 확장해, 모든 점수대에서 결과가 나오도록 했다.
+
+    4~6점 경로에서 Learning Tip이 먼저 실행되어 핵심 약점(topic)을 정하고,
     Followup이 그 topic을 그대로 이어받아 겨냥한 꼬리질문을 만든다.
     두 노드가 같은 improvements를 각자 따로 해석하지 않고, 순차적으로 하나의
     진단 결과를 공유하도록 설계했다."""
     graph = StateGraph(InterviewState)
     graph.add_node("retrieval", retrieval_node)
     graph.add_node("judge", judge_node)
-    graph.add_node("learning_tip", learning_tip_node)   
+    graph.add_node("fundamentals", fundamentals_node)
+    graph.add_node("learning_tip", learning_tip_node)
     graph.add_node("followup", followup_node)
+    graph.add_node("advanced", advanced_question_node)
 
     graph.add_edge(START, "retrieval")   # 시작 -> KB 검색
     graph.add_edge("retrieval", "judge") # 검색 -> 채점
     # 여기가 Agent의 심장: 일반 add_edge와 달리 다음 노드가 런타임에 결정됨
     graph.add_conditional_edges(
-        "judge",                                        # 이 노드가 끝난 직후 분기 판단
-        decide_next_step,                               # 판단 함수 (문자열 반환)
-        {"learning_tip": "learning_tip", "end": END},   # 반환값 -> 실제 목적지 매핑
+        "judge",              # 이 노드가 끝난 직후 분기 판단
+        decide_next_step,     # 판단 함수 (문자열 반환)
+        {                     # 반환값 -> 실제 목적지 매핑
+            "fundamentals": "fundamentals",
+            "learning_tip": "learning_tip",
+            "advanced": "advanced",
+        },
     )
-    graph.add_edge("learning_tip", "followup") # 팁 -> 꼬리질문 (순차)
-    graph.add_edge("followup", END)            # 꼬리질문 -> 끝
+    graph.add_edge("fundamentals", END)         # 0~3점 경로 종료
+    graph.add_edge("learning_tip", "followup")  # 팁 -> 꼬리질문 (순차)
+    graph.add_edge("followup", END)             # 4~6점 경로 종료
+    graph.add_edge("advanced", END)             # 7~10점 경로 종료
 
     return graph.compile()

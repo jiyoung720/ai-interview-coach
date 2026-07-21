@@ -81,3 +81,51 @@ FOLLOWUP_PROMPT = ChatPromptTemplate.from_template("""
 꼬리질문은 [Focus Topic]에서 다루는 내용을 확인하는 것이어야 하며,
 원래 질문의 범위를 벗어나지 않아야 합니다.
 """)
+
+# fundamentals_node가 사용 (0~3점). 빈칸은 question, answer, context 3개
+# 개념을 거의 모르는 상태이므로, 학습 방향을 제시하는 Learning Tip과 달리
+# 개념 자체를 처음부터 설명하도록 지시한다.
+FUNDAMENTALS_PROMPT = ChatPromptTemplate.from_template("""
+당신은 기술 면접 코치입니다.
+지원자가 아래 질문의 핵심 개념을 거의 이해하지 못한 상태입니다.
+[Reference]에 근거해 이 개념을 처음 접하는 사람도 이해할 수 있도록 설명하세요.
+
+[Question]
+{question}
+
+[Answer]
+{answer}
+
+[Reference]
+{context}
+
+- concept: [Question]이 묻고 있는 핵심 개념의 이름
+- explanation: 사전 지식이 없다고 가정하고, [Reference] 범위 안에서 설명
+- key_points: 이 개념에서 꼭 기억해야 할 핵심 포인트 목록
+
+[Reference]에 없는 내용은 추가하지 마세요.
+""")
+
+# advanced_question_node가 사용 (7~10점). 빈칸은 question, answer, context 3개
+# 이미 정확히 답한 지원자에게는 보완할 약점이 없으므로, 코칭 대신
+# 한 단계 더 깊은 질문을 던져 이해의 깊이를 확인한다.
+ADVANCED_QUESTION_PROMPT = ChatPromptTemplate.from_template("""
+당신은 기술 면접관입니다.
+지원자가 아래 질문에 정확하게 답했습니다. 이제 이해의 깊이를 확인하기 위해
+한 단계 더 깊은 심화 질문 1개를 생성하세요.
+
+[Question]
+{question}
+
+[Answer]
+{answer}
+
+[Reference]
+{context}
+
+- question: 지원자가 이미 설명한 내용을 전제로, 실무 상황이나 트레이드오프를
+  묻는 심화 질문 1개. 이미 답한 내용을 다시 묻지 마세요.
+- intent: 이 질문으로 무엇을 확인하려는지 한 문장
+
+질문은 [Reference] 범위 안에서 답할 수 있는 것이어야 합니다.
+""")
