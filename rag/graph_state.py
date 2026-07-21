@@ -22,7 +22,7 @@ class InterviewState(TypedDict, total=False):
     # Chain B: Judge Node가 채움
     evaluation_result: EvaluationResult
 
-    # Agent 확장 — technical_score < 5일 때만 병렬로 채워짐
+    # Agent 확장: technical_score < 5일 때만 채워짐 (병렬이 아니라 learning_tip -> followup 순차 실행)
     next_action: str
     followup_question: str
     learning_tip: LearningTip

@@ -8,6 +8,8 @@ QUESTION_GENERATION_PROMPT = ChatPromptTemplate.from_template("""
 {context}
 """)
 
+# completeness_score 기준 문구는 Judge Calibration 실험에서 Judge가 질문 범위를 벗어난
+# 배경지식까지 커버리지 체크리스트처럼 채점하던 문제를 발견한 뒤 추가한 것 (52.9% -> 94.1%로 개선)
 EVALUATION_PROMPT = ChatPromptTemplate.from_template("""
 당신은 기술 면접관입니다.
 아래 [Reference] 자료를 참고하여 지원자의 답변을 평가하세요.

@@ -17,6 +17,8 @@ def evaluate_answer(request: EvaluateAnswerRequest):
     result = graph.invoke({"question": request.question, "answer": request.answer})
 
     evaluation = result["evaluation_result"]
+    # technical_score >= 5면 learning_tip/followup 노드가 아예 실행되지 않아
+    # state에 해당 키가 없으므로 .get()으로 안전하게 조회 (없으면 None)
     learning_tip = result.get("learning_tip")
 
     return {

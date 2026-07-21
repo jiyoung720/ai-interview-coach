@@ -98,7 +98,9 @@ def learning_tip_node(state: InterviewState) -> dict:
 
 
 def followup_node(state: InterviewState) -> dict:
-    """learning_tip_node가 정한 topic을 그대로 겨냥한 꼬리질문을 생성한다."""
+    """learning_tip_node가 정한 topic을 그대로 겨냥한 꼬리질문을 생성한다.
+    출력이 질문 문자열 하나뿐이라 다른 노드와 달리 with_structured_output()을
+    쓰지 않고 일반 텍스트로 받은 뒤 extract_text()로 정리한다."""
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     from rag.config import GEMINI_MODEL

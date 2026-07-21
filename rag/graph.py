@@ -13,6 +13,9 @@ from rag.graph_state import InterviewState
 
 
 def build_retrieval_only_graph():
+    """RAGAS 평가 등 context만 필요할 때 쓰는 그래프.
+    Judge/Learning Tip/Followup까지 다 도는 build_interview_agent_graph()를 쓰면
+    필요 없는 Gemini 호출이 같이 발생하므로, retrieval만 도는 최소 그래프를 따로 둠."""
     graph = StateGraph(InterviewState)
     graph.add_node("retrieval", retrieval_node)
     graph.add_edge(START, "retrieval")
@@ -21,7 +24,8 @@ def build_retrieval_only_graph():
 
 
 def build_chain_b_graph():
-    """전체 Chain B 그래프: Retrieval(Interview KB) → Judge"""
+    """Agent 분기 없이 Judge 점수만 필요할 때 쓰는 그래프 (예: Calibration Set 채점).
+    전체 Chain B 그래프: Retrieval(Interview KB) → Judge"""
     graph = StateGraph(InterviewState)
     graph.add_node("retrieval", retrieval_node)
     graph.add_node("judge", judge_node)
