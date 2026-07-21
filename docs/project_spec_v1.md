@@ -362,7 +362,7 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] `GEMINI_API_KEY`는 이미지에 굽지 않고 Compose `env_file`로 런타임 주입
 - [x] entrypoint에서 KB 컬렉션이 비어 있을 때만 일회성 인덱싱 수행 (최초 기동 자동화)
 - [x] **이미지 크기 10.9GB → 3.79GB 감축**: 실측 결과 CUDA 스택(nvidia 2.9GB + triton 652MB)이 포함되어 있었으나 배포 대상에 GPU가 없어 전부 불필요했음. Dockerfile 안에서만 CPU 전용 torch를 쓰도록 처리(로컬 macOS와 Colab GPU 환경에 영향이 가지 않도록 `pyproject.toml`은 수정하지 않음)
-- [ ] **미해결**: 현재 이미지는 arm64(Apple Silicon)로 빌드됨. EC2 표준 인스턴스(x86_64)에서는 실행되지 않으므로 ③ 단계에서 `--platform linux/amd64` 빌드 검증 필요
+- [x] **arm64/amd64 양쪽 검증 완료**: 로컬은 arm64(Apple Silicon) 3.79GB, CI 러너(linux/amd64)는 2.7GB. 두 아키텍처 모두 CUDA 패키지 0개로, CPU torch 설정이 amd64에서도 유효함을 ②의 CI 실행으로 확인. EC2 표준 인스턴스(x86_64) 사용 가능하며, 2.7GB이므로 기본 EBS 볼륨(8GB)에도 여유가 있다
 
 **② GitHub Actions (CI) (완료)**
 - [x] 푸시/PR 시 자동 실행되는 워크플로 구성 (`.github/workflows/ci.yml`), 배포는 하지 않음
@@ -373,9 +373,9 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] 프로덕션 이미지에서 dev 의존성 제외 (`uv sync --no-dev`)
 
 **③ AWS EC2 수동 배포**
-- [ ] 인스턴스 아키텍처 확정 후 그에 맞는 플랫폼으로 이미지 재빌드
-  - x86_64(t2/t3) 선택 시 `--platform linux/amd64` 빌드 필요. 이때 ①에서 적용한 CPU torch 설정이 amd64에서도 유효한지 재확인해야 함(arm64에서만 검증된 상태)
-  - Graviton(t4g) 선택 시 현재 arm64 이미지를 그대로 사용 가능
+- [ ] 인스턴스 아키텍처 확정 후 그에 맞는 플랫폼으로 이미지 빌드
+  - x86_64(t2/t3): ②의 CI가 amd64 러너에서 빌드·검증을 이미 통과했으므로 그대로 사용 가능 (2.7GB, CUDA 0개)
+  - Graviton(t4g): 로컬 arm64 이미지를 그대로 사용 가능 (3.79GB)
 - [ ] EC2 인스턴스에 배포하고 외부에서 접근 가능하도록 구성
   - 리스크: 프리티어 `t2.micro`(RAM 1GB)는 로컬 임베딩 모델 로딩만으로 OOM 가능. 대응안은 (a) 상위 인스턴스, (b) swap 설정, (c) 배포 환경에 한해 Gemini Embedding API로 전환(`get_gemini_embeddings()`가 이미 구현되어 있음)
   - 참고: 이미지 3.79GB이므로 기본 EBS 볼륨(8GB) 용량도 함께 고려 필요
