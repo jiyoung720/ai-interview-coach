@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # 1) 테스트: API 키가 필요 없는 계층만 검증한다.
+  # 분기 로직과 그래프 구조는 순수 함수/구조라 Gemini 호출 없이 확인할 수 있어,
+  # 비밀값을 CI에 노출하지 않고도 회귀를 잡을 수 있다.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest -v
+
+  # 2) Docker 빌드: Dockerfile이 깨끗한 환경에서도 빌드되는지 확인한다.
+  # 로컬은 macOS/arm64지만 러너는 linux/amd64라, "내 컴퓨터에서만 되는" 문제와
+  # amd64에서의 CPU torch 설정 동작 여부를 여기서 먼저 잡을 수 있다.
+  # 배포는 하지 않는다 (CD는 EC2 구성 이후 별도 단계).
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ai-interview-coach:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # CUDA 스택이 다시 섞여 들어오면 이미지가 3배 이상 커지므로,
+      # 최적화가 조용히 풀리지 않았는지 빌드 결과로 확인한다.
+      # (실제로 처음 최적화 시도는 에러 없이 빌드됐지만 적용되지 않았던 전례가 있음)
+      - name: Verify CPU-only torch
+        run: |
+          echo "=== 이미지 크기 ==="
+          docker images ai-interview-coach:ci --format "{{.Size}}"
+
+          echo "=== nvidia/triton 포함 여부 ==="
+          COUNT=$(docker run --rm --entrypoint sh ai-interview-coach:ci -c \
+            "ls /app/.venv/lib/python3.12/site-packages/ | grep -icE 'nvidia|triton' || true")
+          echo "발견된 패키지 수: $COUNT"
+          if [ "$COUNT" != "0" ]; then
+            echo "::error::CPU 전용 torch 설정이 적용되지 않았습니다. CUDA 패키지가 이미지에 포함되어 있습니다."
+            exit 1
+          fi
+
+      # 컨테이너가 실제로 기동해 헬스체크에 응답하는지 확인한다.
+      # KB 인덱싱은 임베딩 모델만 쓰고 Gemini를 호출하지 않으므로 API 키 없이 가능하다.
+      - name: Smoke test
+        run: |
+          docker run -d --name ci-app -p 8000:8000 -e GEMINI_API_KEY=dummy ai-interview-coach:ci
+
+          # 최초 기동 시 KB 인덱싱(29 chunk)이 돌기 때문에 여유를 둔다
+          for i in $(seq 1 120); do
+            if curl -sf http://127.0.0.1:8000/ > /dev/null; then
+              echo "기동 확인 (${i}초)"
+              curl -s http://127.0.0.1:8000/
+              docker rm -f ci-app > /dev/null
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::컨테이너가 120초 안에 기동하지 않았습니다."
+          docker logs ci-app
+          docker rm -f ci-app > /dev/null
+          exit 1

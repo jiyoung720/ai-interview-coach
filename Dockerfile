@@ -33,7 +33,7 @@ RUN awk '!done && /^]/ { print "    \"torch==2.13.0\","; done=1 } { print }' pyp
     && uv lock
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project
+    uv sync --frozen --no-install-project --no-dev
 
 # 애플리케이션 코드
 COPY app/ app/
@@ -43,7 +43,7 @@ COPY kb/ kb/
 COPY scripts/ scripts/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    uv sync --frozen --no-dev
 
 # 임베딩 모델(ko-sroberta-multitask)을 빌드 시점에 미리 받아둔다.
 # 런타임에 받게 하면 첫 요청이 크게 느려지고, 네트워크에 의존하게 된다.
