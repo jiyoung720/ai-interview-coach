@@ -29,7 +29,7 @@ curl -X POST http://127.0.0.1:8000/generate-question \
 {"questions": ["FastAPI의 비동기(async/await) 처리 방식이 ...", "JWT를 이용한 사용자 인증을 구현할 때 ...", "..."]}
 ```
 
-**답변 평가 + Agent 분기 (technical_score가 5 미만이면 Learning Tip → Followup 순차 생성)**
+**답변 평가 + Agent 분기 (technical_score 구간에 따라 서로 다른 코칭을 반환)**
 ```bash
 curl -X POST http://127.0.0.1:8000/evaluate-answer \
   -H "Content-Type: application/json" \
@@ -41,16 +41,21 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
   "completeness_score": 0,
   "improvements": ["JWT의 개념과 구성 요소에 대한 학습이 필요합니다.", "..."],
   "retrieved_sources": ["jwt.md", "oauth.md"],
-  "learning_tip": {
-    "topic": "JWT의 기본 구조 및 Access/Refresh 토큰의 역할 분리",
-    "reason": "JWT의 핵심 정의와 구성 요소를 파악하고, 토큰 역할 분리 개념을 보완해야 하기 때문입니다.",
-    "recommended_sections": ["JWT (JSON Web Token)"]
+  "next_action": "fundamentals_explained",
+  "concept_explanation": {
+    "concept": "JWT (JSON Web Token)",
+    "explanation": "JWT는 사용자 인증 정보를 안전하게 전달하기 위한 토큰 기반 인증 방식입니다. 점(.)으로 구분된 Header, Payload, Signature 세 부분으로 구성됩니다. ...",
+    "key_points": ["Header/Payload/Signature 3단 구조", "..."]
   },
-  "followup_question": "보통 토큰 기반 인증 시스템에서는 ... Access Token과 Refresh Token을 나누어 사용하는 보안상의 핵심적인 이유는 무엇인가요?"
+  "learning_tip": null,
+  "followup_question": null,
+  "advanced_question": null
 }
 ```
 
-`learning_tip.topic`과 `followup_question`이 같은 주제를 겨냥합니다. Learning Tip이 먼저 핵심 약점을 정하고 Followup이 그 결과를 이어받는 순차 구조이기 때문입니다.
+0점이라 개념 자체를 모르는 상태로 판단해, 학습 방향 제시(Learning Tip) 대신 **개념 설명**을 반환했습니다. 같은 질문에 부분적으로만 맞는 답변(5점)을 보내면 `learning_tip` + `followup_question`이, 정확한 답변(10점)을 보내면 `advanced_question`(심화 질문)이 채워집니다. `next_action`으로 어느 경로가 실행됐는지 알 수 있습니다.
+
+4~6점 경로에서는 `learning_tip.topic`과 `followup_question`이 같은 주제를 겨냥합니다. Learning Tip이 먼저 핵심 약점을 정하고 Followup이 그 결과를 이어받는 순차 구조이기 때문입니다.
 
 Faithfulness 문제(컨텍스트에 없는 내용을 생성하는 것)를 실측으로 발견한 뒤, RAGAS로 정량화했습니다. 자세한 수치는 [Key Findings](#key-findings) 참고.
 
@@ -61,17 +66,24 @@ flowchart TB
     subgraph ChainA["Chain A - 질문 생성"]
         A1[Retrieval Node<br/>User Docs] --> A2[Generation Node<br/>Gemini Structured Output]
     end
-    subgraph ChainB["Chain B + Agent v2 - 답변 평가"]
+    subgraph ChainB["Chain B + Agent v3 - 답변 평가"]
         B1[Retrieval Node<br/>Interview KB] --> B2[Judge Node<br/>Gemini Structured Output]
         B2 --> BD{Decision<br/>technical_score?}
-        BD -->|"< 5"| B3[Learning Tip Node<br/>약점 기반 학습 추천]
+        BD -->|"0~3점"| B6[Fundamentals Node<br/>개념 자체를 설명]
+        BD -->|"4~6점"| B3[Learning Tip Node<br/>약점 기반 학습 추천]
         B3 -->|"topic 전달"| B5[Followup Node<br/>Learning Tip의 topic을<br/>이어받아 꼬리질문 생성]
-        BD -->|">= 5"| B4[End]
+        BD -->|"7~10점"| B7[Advanced Question Node<br/>심화 질문 생성]
+        B6 --> B4[End]
         B5 --> B4
+        B7 --> B4
     end
 ```
 
-**technical_score가 5 미만이면 Agent가 Learning Tip → Followup을 순차로 생성합니다.** 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 Agent 형태입니다. Learning Tip과 Followup을 병렬이 아닌 순차로 설계한 이유는 이렇습니다. 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험이 있어, Learning Tip이 먼저 핵심 주제(topic)를 정하고 Followup이 그 결과를 이어받도록 했습니다.
+**technical_score 구간에 따라 세 갈래 중 하나가 실행됩니다.** 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 Agent 형태입니다.
+
+분기를 설계할 때 기준으로 삼은 것은 "갈래 수를 늘리자"가 아니라 **"점수대마다 필요한 코칭의 종류가 다르다"**였습니다. 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무 노드도 실행되지 않아 한쪽 경로가 비어 있었는데, 이 확장으로 모든 점수대에서 결과가 나옵니다.
+
+4~6점 경로에서 Learning Tip과 Followup을 병렬이 아닌 순차로 설계한 이유는 이렇습니다. 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험이 있어, Learning Tip이 먼저 핵심 주제(topic)를 정하고 Followup이 그 결과를 이어받도록 했습니다.
 
 두 체인 모두 LangChain LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 분리해 (1) 문제 발생 시 어느 단계인지 바로 특정할 수 있고, (2) 평가 점수에 따른 조건부 분기(Agent)를 Node 단위로 추가할 수 있도록 설계했습니다. 기존 LCEL 코드(`rag/chains.py`)는 삭제하지 않고 그대로 보존해, Migration 과정 자체를 코드로 증명할 수 있게 했습니다.
 
@@ -86,6 +98,7 @@ flowchart TB
 - **임베딩 비교 결론이 표본 확대 후 뒤집힘**: KB가 2개 문서였을 때는 두 임베딩이 항상 동일했고, 11개로 확장한 뒤 5문항 표본에서는 Gemini Embedding이 더 안정적으로 관찰됐음(다만 표본이 작아 일반화는 보류). Retrieval Unit 재설계로 KB를 18개로 재구성한 뒤 20문항 평가셋으로 재실행하자 정반대로 `ko-sroberta-multitask`가 Top-1 100%(20/20)·Faithfulness 0.9708로 Gemini Embedding(95.0%·0.9500)보다 근소하게 우세했음. 작은 표본에서의 결론을 그대로 일반화하면 안 된다는 것을 직접 확인한 사례.
 - **Judge Calibration으로 프롬프트/테스트 데이터 결함을 구분해냄**: Judge 채점을 그대로 신뢰하지 않고 Calibration Set(17개)으로 검증. 실패 원인을 분석한 결과 Judge가 아니라 Calibration Set 자체의 설계 결함(동일 답변에 서로 다른 기대치 부여)이 원인이었음을 발견, 재설계를 통해 정확도를 52.9%에서 94.1%로 향상시킴.
 - **LangGraph 마이그레이션 검증에 Calibration Set을 회귀 테스트로 재사용**: LCEL에서 LangGraph로 Migration한 이후에도 기존 Judge 동작이 유지되는지 확인하기 위해, 그래프로 옮긴 뒤 동일한 Calibration Set을 재실행(88.2%)함. 실패 케이스가 LCEL 버전에서도 존재했던 경계선 변동과 동일함을 확인했고, 마이그레이션이 새로운 오분류를 만들지 않았음을 검증.
+- **라우팅 로직을 순수 함수로 분리해두면 LLM 호출 없이 전수 검증이 가능함**: Agent를 점수 구간별 3분기로 확장할 때, 분기 함수(`decide_next_step`)가 State만 받는 순수 함수라 Gemini 호출 없이 0~10점 11개 값을 전부 검증할 수 있었음. 이전 경계값 검증(Agent v1)에서는 특정 점수가 나오는 답변을 LLM으로 만들어내야 해서 0/5/10 세 지점만 확인했던 것과 대비됨. 노드와 라우팅을 분리한 구조의 실질적 이점.
 - **Agent 확장 시 병렬보다 순차가 나은 경우가 있음**: Learning Tip과 Followup을 처음엔 병렬 노드로 설계했으나, 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험을 발견. Learning Tip이 먼저 topic을 정하고 Followup이 그 결과를 이어받는 순차 구조로 변경해, 두 출력이 항상 같은 주제를 가리키도록 함.
 
 ## Tech Stack
@@ -105,6 +118,7 @@ flowchart TB
 - Judge Calibration Set(17개)으로 평가 로직을 검증하고, 이를 마이그레이션 회귀 테스트로 재사용
 - Retrieval / Judge / Generation을 독립적인 Graph Node로 분리해 디버깅 가능성과 확장성 확보
 - technical_score 기반 Agent를 구현하고, Learning Tip이 생성한 topic을 Followup이 이어받도록 설계하여 Agent 출력의 일관성을 확보
+- Agent를 점수 구간별 3분기(개념 설명 / 약점 코칭 / 심화 질문)로 확장해 모든 점수대에서 결과가 나오도록 개선. 라우팅 로직은 순수 함수로 분리해 LLM 호출 없이 0~10점 전 구간을 전수 검증
 - RAGAS(Faithfulness, Context Precision)를 도입하고, KB 규모(2개에서 11개로)가 지표 변별력에 미치는 영향을 실험으로 확인
 - 동일 KB에 두 임베딩(`ko-sroberta-multitask`, Gemini Embedding)을 각각 인덱싱해 비교 실험 파이프라인 구축
 - Retrieval 전용 평가셋(20문항)을 구축하고, 문서 분리 전략을 "완결된 근거 단위" 기준으로 재설계해 Top-1 정확도 100%·Faithfulness 0.9708까지 개선
@@ -131,9 +145,17 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
   -H "Content-Type: application/json" \
   -d '{"question": "JWT란 무엇인가?", "answer": "..."}'
 ```
-응답: `{"technical_score": ..., "completeness_score": ..., "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "learning_tip": {"topic": ..., "reason": ..., "recommended_sections": [...]} | null, "followup_question": "..." | null}`
+응답: `{"technical_score": ..., "completeness_score": ..., "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "next_action": "...", "concept_explanation": {...} | null, "learning_tip": {...} | null, "followup_question": "..." | null, "advanced_question": {...} | null}`
 
-`technical_score`가 5 미만이면 Agent가 `learning_tip`과 `followup_question`을 순차로 생성합니다 (점수가 충분하면 둘 다 `null`). `followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
+`technical_score` 구간에 따라 셋 중 하나의 경로만 실행되고, 나머지 필드는 `null`입니다.
+
+| 점수 | `next_action` | 채워지는 필드 |
+|---|---|---|
+| 0~3 | `fundamentals_explained` | `concept_explanation` (concept, explanation, key_points) |
+| 4~6 | `followup_generated` | `learning_tip` (topic, reason, recommended_sections) + `followup_question` |
+| 7~10 | `advanced_question_generated` | `advanced_question` (question, intent) |
+
+`followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
 
 ## 실행 방법
  
