@@ -1,5 +1,7 @@
 # ai-interview-coach
 
+[![CI/CD](https://github.com/jiyoung720/ai-interview-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/jiyoung720/ai-interview-coach/actions/workflows/ci.yml)
+
 사용자의 이력서·포트폴리오 문서를 기반으로 개인화된 기술 면접 질문을 생성하고, 답변을 평가하는 RAG 기반 AI 면접 코치 서비스입니다.
 
 > 단순히 RAG를 구현하는 데 그치지 않고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증하며 설계를 반복 개선했습니다. LangGraph 기반 Agent로 확장한 뒤에도 동일한 검증 방식을 유지했습니다. (자세한 진행 상황은 [Project Outcomes](#project-outcomes) 참고)
@@ -173,7 +175,19 @@ docker compose up -d
 ```
 최초 기동 시 Interview KB가 자동으로 인덱싱되고(18개 문서, 29 chunk), 이후 재시작에서는 volume에 남아 있는 인덱스를 그대로 사용합니다. `chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
 
-이미지는 CPU 전용 torch를 사용해 3.79GB입니다. 기본 설정으로 빌드하면 배포 대상에 없는 GPU용 CUDA 스택이 3.5GB가량 포함되어 10.9GB가 되는데, 이를 Dockerfile 안에서만 걷어냈습니다. 로컬(macOS)과 Colab(GPU 사용) 환경은 영향을 받지 않도록 `pyproject.toml`은 수정하지 않았습니다.
+이미지는 CPU 전용 torch를 사용해 3.79GB입니다(amd64 기준 2.7GB). 기본 설정으로 빌드하면 배포 대상에 없는 GPU용 CUDA 스택이 3.5GB가량 포함되어 10.9GB가 되는데, 이를 Dockerfile 안에서만 걷어냈습니다. 로컬(macOS)과 Colab(GPU 사용) 환경은 영향을 받지 않도록 `pyproject.toml`은 수정하지 않았습니다.
+
+### CI/CD
+
+`main` 브랜치에 푸시하면 GitHub Actions가 다음을 자동 수행합니다.
+
+```
+push → test (회귀 테스트 22개) → docker-build (이미지 빌드 + 스모크 테스트) → deploy (EC2 배포)
+```
+
+- **test**: 분기 로직, 그래프 구조, chunking 등 Gemini API 키가 필요 없는 계층만 검증합니다. 비밀값을 CI에 노출하지 않기 위한 설계이며, 마침 회귀가 가장 나기 쉬운 부분(Agent 분기)이 이 범위에 들어옵니다.
+- **docker-build**: 깨끗한 환경(linux/amd64)에서 빌드되는지 확인하고, CUDA 패키지가 다시 섞이면 실패 처리합니다. 실제로 CPU torch 최적화가 에러 없이 적용되지 않았던 적이 있어 자동 검사로 고정했습니다.
+- **deploy**: 앞의 두 job이 통과한 경우에만 실행됩니다(`needs`). EC2에 SSH로 접속해 재기동한 뒤, 외부에서 헬스체크로 실제 응답까지 확인합니다.
 
 ## 문서
 
