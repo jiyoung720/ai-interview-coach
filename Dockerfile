@@ -35,7 +35,17 @@ RUN awk '!done && /^]/ { print "    \"torch==2.13.0\","; done=1 } { print }' pyp
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
-# 애플리케이션 코드
+# 임베딩 모델(ko-sroberta-multitask)을 빌드 시점에 미리 받아둔다.
+# 런타임에 받게 하면 첫 요청이 크게 느려지고, 네트워크에 의존하게 된다.
+#
+# 코드를 COPY하기 전에 배치하는 이유: 이 레이어(449MB)가 코드 복사 뒤에 있으면
+# 코드 한 줄만 바뀌어도 캐시가 무효화되어 매 배포마다 모델을 다시 받는다.
+# 그래서 rag.embeddings를 import하지 않고 모델명을 직접 지정해 코드 의존을 끊었다.
+# (모델명은 rag/embeddings.py의 EMBEDDING_MODEL_NAME과 일치해야 함)
+RUN python -c "from langchain_huggingface import HuggingFaceEmbeddings; \
+    HuggingFaceEmbeddings(model_name='jhgan/ko-sroberta-multitask')"
+
+# 애플리케이션 코드 (자주 바뀌므로 무거운 레이어들 뒤에 배치)
 COPY app/ app/
 COPY api/ api/
 COPY rag/ rag/
@@ -44,10 +54,6 @@ COPY scripts/ scripts/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
-
-# 임베딩 모델(ko-sroberta-multitask)을 빌드 시점에 미리 받아둔다.
-# 런타임에 받게 하면 첫 요청이 크게 느려지고, 네트워크에 의존하게 된다.
-RUN python -c "from rag.embeddings import get_embeddings; get_embeddings()"
 
 # volume 마운트 지점. 컨테이너를 지워도 인덱스와 업로드 파일은 남는다
 VOLUME ["/app/chroma_db", "/app/data/uploads"]
