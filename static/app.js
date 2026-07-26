@@ -3,6 +3,23 @@
 
 const $ = (id) => document.getElementById(id);
 
+// ---- 테마(라이트/다크) 토글 ----
+// 사용자의 선택을 localStorage에 저장해 새로고침해도 유지한다.
+(function initTheme() {
+  const saved = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const theme = saved || (prefersDark ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", theme);
+
+  const toggle = document.getElementById("theme-toggle");
+  toggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    const next = current === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+  });
+})();
+
 // 현재 선택된 질문을 기억 (평가 요청 시 question으로 보냄)
 let selectedQuestion = null;
 
