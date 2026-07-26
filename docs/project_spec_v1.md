@@ -10,7 +10,7 @@
 
 메인 프로젝트(`korean-chatbot`, GPT-style Transformer 직접 구현)의 후속작으로, 기성 LLM(Gemini API)을 활용한 실서비스형 AI 시스템 구축·서빙·평가 역량을 보여주는 것이 목적.
 
-**지원 파일 형식은 현재 `.md`, `.txt`이다.** PDF(`resume.pdf` 등)는 초기 구상 단계의 예시였고 아직은 실제로는 구현하지 않았다 (Future Work).
+**지원 파일 형식은 `.md`, `.txt`, `.pdf`이다.** PDF는 `pypdf`로 텍스트를 추출한다(Phase 9에서 추가). 스캔 이미지 PDF처럼 텍스트가 없는 경우는 422로 거부한다.
 
 ## 2. 현재 아키텍처
 
@@ -93,7 +93,7 @@ class InterviewState(TypedDict, total=False):
 - **그래프에 사이클이 없음**: Phase 7에서 점수 구간별 3분기로 확장해 "점수가 높으면 아무 동작도 하지 않는" 빈 경로는 해소했으나, 여전히 모든 경로가 한 방향으로 흐르고 끝난다. "조건부 분기만 할 것이면 LCEL로도 가능하지 않은가"라는 반문에 답하려면 사이클이 필요하며, 멀티턴 루프(Future Work 최우선)로 대응 예정
 - **Retrieval 지표의 변별력 재확인 필요**: Context Precision 1.0000은 KB 2개 시절 만점과 같은 "측정 조건 미충족"일 가능성이 있음 (KB 확장 후 재측정 항목으로 관리)
 - 실배포(Docker, EC2, CI/CD)는 Phase 8에서 진행 예정
-- PDF 지원은 Phase 9로 계획 (현재 `.md`, `.txt`만 지원)
+- PDF 지원 완료 (Phase 9, `.md`/`.txt`/`.pdf`)
 
 세부 계획은 아래 [Roadmap](#roadmap)의 Phase 7 이후 항목 참고.
 
@@ -416,9 +416,11 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] TCP 재전송 관측: 신뢰성 메커니즘이 실제로 동작하는 것을 캡처로 확인
 - [ ] 캡처 데이터를 분석 보고서로 정리 (과제 제출물)
 
-### Phase 9: 입력 형식 확장 (진행 예정)
-- [ ] PDF 업로드 지원 (현재 `.md`, `.txt`만 지원)
-  - `rag/loader.py`에 PDF 로더 추가 + `api/documents.py`의 `SUPPORTED_EXTENSIONS` 확장으로 대응 가능
+### Phase 9: 입력 형식 확장 (완료)
+- [x] PDF 업로드 지원 (`.md`/`.txt`/`.pdf`), `pypdf`로 텍스트 추출
+- [x] PDF 파싱을 `load_pdf_file`로 격리하고 `load_document`가 확장자로 분기하도록 설계. 나중에 pdfplumber 등으로 교체해도 이 함수 몸통만 수정하면 됨(호출부·후단 불변)
+- [x] 텍스트가 없는 PDF(스캔 이미지 등)는 빈 인덱싱 대신 422로 거부
+- [x] 확장자 분기 회귀 테스트 추가, 실제 서버에 한글 PDF 업로드 후 질문 생성까지 end-to-end 검증
   - 실사용 이력서는 대부분 PDF이므로 제품 가치가 높음
 
 ### Future Work / 선택

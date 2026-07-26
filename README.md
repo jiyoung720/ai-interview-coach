@@ -130,6 +130,7 @@ flowchart TB
 ## API
 
 ### `POST /documents`
+사용자 문서를 업로드해 User Docs 컬렉션에 인덱싱합니다. `.md`, `.txt`, `.pdf`를 지원하며, PDF는 `pypdf`로 텍스트를 추출합니다.
 ```bash
 curl -X POST http://127.0.0.1:8000/documents -F "file=@tests/fixtures/sample_user_doc.md"
 ```
