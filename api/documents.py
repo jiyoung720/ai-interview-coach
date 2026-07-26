@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from rag.loader import chunk_text, load_text_file
+from rag.loader import chunk_text, load_document
 from rag.vectorstore import get_user_docs_vectorstore
 
 router = APIRouter()
@@ -14,7 +14,7 @@ router = APIRouter()
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)   # 이미 있으면 그냥 넘어가고, 없으면 생성
 
-SUPPORTED_EXTENSIONS = {".md", ".txt"}
+SUPPORTED_EXTENSIONS = {".md", ".txt", ".pdf"}
 
 # 문서 업로드 (Chain A가 나중에 검색할 데이터를 미리 인덱싱해두는 사전 준비 단계. Chain A 자체는 questions.py)
 # 처리 흐름: 파일 저장 -> 텍스트 읽기 -> 500자 chunking -> 기존 chunk 삭제 -> 임베딩+저장
@@ -25,16 +25,23 @@ def upload_document(file: UploadFile = File(...)):
     if suffix not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"지원하지 않는 형식입니다: {suffix} (현재는 .md, .txt만 지원)",
+            detail=f"지원하지 않는 형식입니다: {suffix} (현재는 .md, .txt, .pdf만 지원)",
         )
     # 파일 저장: 로드 스트림을 data/uploads/파일명으로 디스크에 복사
     save_path = UPLOAD_DIR / file.filename
     with save_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # 텍스트 읽기 및 chunking (rag/loader.py를 호출)
-    text = load_text_file(str(save_path))
+    # 텍스트 읽기 및 chunking (확장자에 맞는 로더로 분기, rag/loader.py를 호출)
+    text = load_document(str(save_path))
     documents = chunk_text(text, source=file.filename)
+
+    # PDF에서 텍스트를 전혀 못 뽑은 경우(스캔 이미지 PDF 등) 빈 인덱싱을 막고 명확히 알림
+    if not documents:
+        raise HTTPException(
+            status_code=422,
+            detail="파일에서 추출된 텍스트가 없습니다 (스캔 이미지 PDF일 수 있습니다).",
+        )
 
     # 벡터 DB에 chunk 저장 (rag/vectorstore.py를 호출)
     vectorstore = get_user_docs_vectorstore()
