@@ -73,9 +73,9 @@ jobs:
 
           # 최초 기동 시 KB 인덱싱(29 chunk)이 돌기 때문에 여유를 둔다
           for i in $(seq 1 120); do
-            if curl -sf http://127.0.0.1:8000/ > /dev/null; then
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
               echo "기동 확인 (${i}초)"
-              curl -s http://127.0.0.1:8000/
+              curl -s http://127.0.0.1:8000/health
               docker rm -f ci-app > /dev/null
               exit 0
             fi

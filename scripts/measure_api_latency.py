@@ -63,11 +63,12 @@ def post_json(path: str, payload: dict, timeout: int = 180):
 
 def measure_health():
     """헬스체크 지연. LLM 호출이 없는 기준선이라, 순수 네트워크 왕복 시간에 가깝다.
-    이 값을 빼면 평가 엔드포인트에서 LLM 처리가 차지하는 비중을 가늠할 수 있다."""
+    이 값을 빼면 평가 엔드포인트에서 LLM 처리가 차지하는 비중을 가늠할 수 있다.
+    (`/`는 이제 데모 HTML을 반환하므로, LLM 없는 가벼운 기준선은 `/health`를 쓴다)"""
     times = []
     for _ in range(5):
         start = time.perf_counter()
-        with urllib.request.urlopen(f"{BASE_URL}/", timeout=30) as res:
+        with urllib.request.urlopen(f"{BASE_URL}/health", timeout=30) as res:
             res.read()
         times.append(time.perf_counter() - start)
     return times

@@ -13,7 +13,7 @@ services:
       - chroma_data:/app/chroma_db
       - uploads_data:/app/data/uploads
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 5s
       # 최초 기동 시 KB 인덱싱이 돌 수 있어 시작 유예를 넉넉히 준다

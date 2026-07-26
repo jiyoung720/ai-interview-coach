@@ -51,6 +51,7 @@ COPY api/ api/
 COPY rag/ rag/
 COPY kb/ kb/
 COPY scripts/ scripts/
+COPY static/ static/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev

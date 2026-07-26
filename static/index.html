@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Interview Coach</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>AI Interview Coach</h1>
+    <p class="subtitle">이력서를 올리면 맞춤 면접 질문을 만들고, 답변을 평가해 코칭합니다.</p>
+  </header>
+
+  <main>
+    <!-- STEP 1: 문서 업로드 -->
+    <section class="card" id="step-upload">
+      <div class="step-head"><span class="step-num">1</span><h2>문서 업로드</h2></div>
+      <p class="hint">이력서·포트폴리오·프로젝트 README를 올리세요. (.md, .txt, .pdf)</p>
+      <div class="upload-row">
+        <input type="file" id="file-input" accept=".md,.txt,.pdf">
+        <button id="upload-btn">업로드</button>
+      </div>
+      <div class="status" id="upload-status"></div>
+    </section>
+
+    <!-- STEP 2: 질문 생성 -->
+    <section class="card disabled" id="step-questions">
+      <div class="step-head"><span class="step-num">2</span><h2>면접 질문 생성</h2></div>
+      <p class="hint">업로드한 문서에서 관심 주제를 검색해 질문을 만듭니다.</p>
+      <div class="upload-row">
+        <input type="text" id="query-input" placeholder="예: JWT 인증 경험, 프로젝트 트러블슈팅" value="프로젝트 기술 스택">
+        <button id="generate-btn">질문 생성</button>
+      </div>
+      <div class="status" id="generate-status"></div>
+      <ul class="question-list" id="question-list"></ul>
+    </section>
+
+    <!-- STEP 3: 답변 & 평가 -->
+    <section class="card disabled" id="step-answer">
+      <div class="step-head"><span class="step-num">3</span><h2>답변 &amp; 평가</h2></div>
+      <p class="hint" id="selected-question">위에서 질문을 선택하세요.</p>
+      <textarea id="answer-input" placeholder="답변을 입력하세요..." rows="5"></textarea>
+      <button id="evaluate-btn">답변 평가받기</button>
+      <div class="status" id="evaluate-status"></div>
+      <div id="result"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
