@@ -4,3 +4,7 @@ __pycache__/
 .env
 chroma_db/
 data/uploads/
+
+# WireShark 캡처 파일 (퍼블릭 IP 등이 담겨 있어 커밋하지 않음)
+*.pcapng
+*.pcap
