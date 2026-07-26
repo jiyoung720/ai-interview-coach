@@ -126,6 +126,7 @@ flowchart TB
 - 동일 KB에 두 임베딩(`ko-sroberta-multitask`, Gemini Embedding)을 각각 인덱싱해 비교 실험 파이프라인 구축
 - Retrieval 전용 평가셋(20문항)을 구축하고, 문서 분리 전략을 "완결된 근거 단위" 기준으로 재설계해 Top-1 정확도 100%·Faithfulness 0.9708까지 개선
 - Embedding 비교를 20문항 평가셋으로 재실행한 결과, 기존 5문항 표본(Gemini 우세) 결론이 뒤집혀 ko-sroberta-multitask가 Top-1 100%·Faithfulness 0.9708로 근소 우세해 최종 임베딩으로 채택
+- FastAPI로 Docker 패키징·EC2 배포·CI/CD 파이프라인을 구축하고, 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
 
 ## API
 
@@ -169,6 +170,7 @@ uv sync
 cp .env.example .env  # GEMINI_API_KEY 채우기
 uv run uvicorn app.main:app --reload
 ```
+브라우저에서 `http://127.0.0.1:8000/` 로 접속하면 데모 화면(업로드 → 질문 생성 → 답변 평가)을 쓸 수 있습니다. 프론트는 순수 HTML/CSS/JS 단일 페이지(`static/`)이고 FastAPI가 직접 서빙합니다.
 
 ### Docker
 ```bash

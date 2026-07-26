@@ -59,9 +59,14 @@ class InterviewState(TypedDict, total=False):
 ### API
 | Endpoint | 역할 |
 |---|---|
+| `GET /` | 데모 프론트엔드(`static/index.html`) 서빙 |
+| `GET /health` | 헬스체크 (LLM 없는 기준선, healthcheck/CI/성능 측정에 사용) |
 | `POST /documents` | User Docs 업로드 + 인덱싱 |
 | `POST /generate-question` | Chain A 실행 |
 | `POST /evaluate-answer` | Chain B + Agent 실행. 점수 구간에 따라 `concept_explanation` / (`learning_tip` + `followup_question`) / `advanced_question` 중 하나가 채워지고, `next_action`으로 실행된 경로를 알 수 있다 |
+
+### 프론트엔드
+순수 HTML/CSS/JS 단일 페이지(`static/`). FastAPI가 정적 파일을 직접 서빙하므로 별도 프론트 서버·CORS 설정·빌드 단계가 없다. 업로드 → 질문 생성 → 답변 평가의 3단계 흐름을 화면으로 연결하고, 점수 구간별 코칭(개념 설명/학습 팁+꼬리질문/심화 질문)을 뱃지·색상으로 구분해 렌더링한다. 단일 페이지 데모에 SPA 프레임워크(React 등)는 과하다고 판단해 의도적으로 배제.
 
 ## 3. 검증 결과 요약
 
@@ -423,8 +428,14 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] 확장자 분기 회귀 테스트 추가, 실제 서버에 한글 PDF 업로드 후 질문 생성까지 end-to-end 검증
   - 실사용 이력서는 대부분 PDF이므로 제품 가치가 높음
 
+### Phase 10: 프론트엔드 (완료)
+- [x] 순수 HTML/CSS/JS 단일 페이지(`static/`) 추가, FastAPI가 정적 서빙(CORS·빌드·별도 서버 없음)
+- [x] 업로드 → 질문 생성 → 답변 평가 3단계 흐름을 화면으로 연결, 점수 구간별 코칭을 뱃지·색상으로 구분 렌더링
+- [x] `GET /`를 데모 페이지로, 헬스체크는 `/health`로 분리(compose/CI/성능 측정 함께 갱신), Dockerfile에 `static/` COPY 추가
+- [x] 로컬 uvicorn과 Docker 컨테이너 양쪽에서 서빙 확인, 브라우저로 전체 흐름(업로드/질문생성/평가/코칭 분기) end-to-end 검증
+
 ### Future Work / 선택
-- [ ] **멀티턴 면접 루프**: 생성된 꼬리질문에 사용자가 다시 답하고 Judge로 되돌아가는 사이클 구조. 종료 조건(점수 도달 / 최대 턴 수 / 개선 없음) 설계 필요.
+- [ ] **멀티턴 면접 루프**: 생성된 꼬리질문에 사용자가 다시 답하고 Judge로 되돌아가는 사이클 구조. 종료 조건(점수 도달 / 최대 턴 수 / 개선 없음) 설계 필요. 프론트엔드가 이미 있으므로, 루프를 붙이면 대화형 UI로 바로 확장 가능.
   - 현재 그래프에는 사이클이 없어 "조건부 분기만 할 것이면 LCEL로도 가능하지 않은가"라는 반문에 답하기 어렵다. 루프를 도입하면 LangGraph 채택 근거가 명확해지므로, Future Work 중 우선순위가 가장 높다.
 - [ ] **KB 확장 (18개 → 25~30개) 및 전체 재측정** (선택)
   - 배경: 현재 Context Precision 1.0000, Faithfulness 0.9708이지만, KB 2개 문서 시절에도 같은 이유로 만점이 나왔다가 "측정 조건 미충족"으로 판명된 전례가 있다. 18개(chunk 29개)에 `k=3`이면 여전히 변별력이 부족할 가능성이 있다.
@@ -433,5 +444,3 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [ ] **Agent v3: Knowledge Search 노드** (선택)
   - Judge가 진단한 약점(`improvements`)을 검색어로 KB를 재검색해 Learning Tip에 더 정확한 근거를 제공하는 구상. v2 설계 시 "이미 검색했는데 왜 또 검색하는가"라는 반문 때문에 보류했으나, Learning Tip 도입 후 "Learning Tip 품질 개선"이라는 명분이 확보되어 v3 확장 여지로 남겨둠.
   - 다만 현재 KB 규모에서는 개선 여지가 크지 않을 수 있고, 오히려 context가 넓어져 Faithfulness가 낮아질 위험도 있다(기존에 관찰된 문제는 근거 부족이 아니라 과잉 인용이었음). KB 확장 이후 20문항 평가셋으로 전후 비교해 검증할 것.
-- [ ] **프론트엔드 화면** (선택)
-  - 멀티턴 루프 구현 이후에 붙이면 대화형 UI와 시너지가 크다.
