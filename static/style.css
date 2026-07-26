@@ -190,7 +190,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow
 /* ===== 질문 리스트 ===== */
 .question-list { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-direction: column; gap: 9px; }
 .question-list li {
-  padding: 14px 16px;
+  padding: 14px 16px 14px 44px;   /* 왼쪽 여백: 선택 체크 아이콘 자리 */
   border: 1px solid var(--field-border);
   border-radius: var(--radius-sm);
   cursor: pointer; font-size: 15px;
@@ -198,16 +198,29 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow
   transition: border-color 0.15s, background 0.15s, transform 0.12s;
   position: relative;
 }
+.question-list li::before {
+  /* 평소엔 옅은 원, 선택 시 체크로 바뀜. 텍스트 왼쪽 고정 위치라 겹치지 않음 */
+  content: "";
+  position: absolute; left: 15px; top: 15px;
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--field-border);
+  transition: all 0.15s;
+}
 .question-list li:hover { border-color: var(--accent); transform: translateX(2px); }
+.question-list li:hover::before { border-color: var(--accent); }
 .question-list li.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
   font-weight: 500;
 }
-.question-list li.selected::after {
-  content: "선택됨";
-  position: absolute; top: 10px; right: 14px;
-  font-size: 11px; font-weight: 600; color: var(--accent-text);
+.question-list li.selected::before {
+  content: "✓";
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
 }
 
 #selected-question.active { color: var(--text); font-weight: 500; }
