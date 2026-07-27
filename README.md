@@ -197,3 +197,6 @@ push → test (회귀 테스트 22개) → docker-build (이미지 빌드 + 스�
 
 - [프로젝트 명세서](docs/project_spec_v1.md): Phase별 상세 진행 상황(Roadmap) 포함
 - [실험 로그](docs/experiment_log.md)
+- 분석 보고서
+  - [과제 1. 유닉스 프로세스·스레드·메모리 분석](docs/reports/01_unix_process_analysis.md)
+  - [과제 2. WireShark HTTP 통신 캡처·분석](docs/reports/02_wireshark_http_capture.md)
