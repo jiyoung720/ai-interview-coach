@@ -53,7 +53,7 @@ WireShark의 Follow HTTP Stream 기능으로 요청·응답 전체를 확인한 
 
 한글이 ASCII 뷰에서 `.`으로 보인 것은 암호화가 아니라 인코딩 표시의 문제였다. UTF-8 뷰로 전환하면 한글 원문이 그대로 드러났다. 즉 **HTTP는 중간에서 패킷을 캡처한 제3자가 요청·응답 내용을 그대로 읽을 수 있다.** 만약 이것이 로그인 요청이었다면 비밀번호가 평문으로 노출됐을 것이다. 이것이 실무에서 HTTPS(TLS)로 통신을 암호화하는 이유이며, 본 캡처는 그 필요성을 실측으로 보여준다.
 
-> **[그림 1] Follow HTTP Stream (UTF-8)** — 요청 JSON과 응답 JSON(한글 코칭 전체)이 평문으로 노출된 화면.
+> **[그림 1] Follow HTTP Stream (UTF-8)** : 요청 JSON과 응답 JSON(한글 코칭 전체)이 평문으로 노출된 화면.
 > *(캡처 이미지 삽입 위치. 공개 시 상단 `Host` IP는 가릴 것)*
 
 ### 관찰 2-4. TCP 재전송 (신뢰성 메커니즘)
@@ -76,7 +76,7 @@ WireShark의 Follow HTTP Stream 기능으로 요청·응답 전체를 확인한 
 
 각 요청이 별도의 TCP 세션으로 열리고(SYN handshake) 닫히는(FIN) 것을 확인했다. 서버는 (클라이언트 IP, 클라이언트 포트, 서버 IP, 서버 포트) 조합으로 각 연결을 구분해 관리한다.
 
-> **[그림 3] 폰 캡처 전체 흐름** — `POST /documents`(패킷 417), `POST /generate-question`(431), `POST /evaluate-answer`(446)이 각각 다른 포트 세션으로 처리되는 화면. Source가 172.16.30.253(폰)과 172.16.30.225(노트북)로 나뉘어 "다른 컴퓨터" 조건을 보여준다.
+> **[그림 3] 폰 캡처 전체 흐름** : `POST /documents`(패킷 417), `POST /generate-question`(431), `POST /evaluate-answer`(446)이 각각 다른 포트 세션으로 처리되는 화면. Source가 172.16.30.253(폰)과 172.16.30.225(노트북)로 나뉘어 "다른 컴퓨터" 조건을 보여준다.
 > *(캡처 이미지 삽입 위치)*
 
 ### 관찰 3-2. 파일 업로드의 TCP 세그먼트 분할
@@ -85,7 +85,7 @@ WireShark의 Follow HTTP Stream 기능으로 요청·응답 전체를 확인한 
 ### 관찰 3-3. TCP Keep-Alive
 답변 평가 요청(약 15초 소요) 도중, 응답이 오래 걸리는 동안 `[TCP Keep-Alive]`와 `[TCP Keep-Alive ACK]` 패킷이 관측됐다. 이는 오랜 침묵 동안 연결이 아직 살아있는지 확인하는 신호로, 케이스 1의 "17초 침묵" 구간과 같은 상황(LLM 대기)에서 연결을 유지하기 위한 TCP의 동작이다.
 
-> **[그림 2] 폰의 단일 요청 캡처** — `POST /evaluate-answer`(패킷 6) 이후 15초 대기 구간에서 `[TCP Keep-Alive]`(패킷 8)와 `[TCP Keep-Alive ACK]`(패킷 9)가 관측된 화면.
+> **[그림 2] 폰의 단일 요청 캡처** : `POST /evaluate-answer`(패킷 6) 이후 15초 대기 구간에서 `[TCP Keep-Alive]`(패킷 8)와 `[TCP Keep-Alive ACK]`(패킷 9)가 관측된 화면.
 > *(캡처 이미지 삽입 위치)*
 
 ---
