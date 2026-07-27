@@ -25,10 +25,20 @@ const $ = (id) => document.getElementById(id);
 let sessionId = null;
 let currentQuestion = null;   // 지금 화면에서 답해야 할 질문
 
-// 공통 유틸: status 영역에 메시지 표시
-function setStatus(el, message, type = "") {
-  el.textContent = message;
+// 공통 유틸: status 영역에 메시지 표시.
+// label을 주면 그 부분만 굵게 나온다 (예: "업로드 완료:" + 파일명).
+// textContent로만 넣어 사용자 입력이 HTML로 해석되지 않게 한다.
+function setStatus(el, message, type = "", label = "") {
   el.className = "status" + (type ? " " + type : "");
+  el.textContent = "";
+  if (label) {
+    const strong = document.createElement("strong");
+    strong.textContent = label;
+    el.appendChild(strong);
+    el.appendChild(document.createTextNode(" " + message));
+  } else {
+    el.textContent = message;
+  }
 }
 
 // 공통 유틸: 카드 활성화/비활성화
@@ -60,8 +70,9 @@ $("upload-btn").addEventListener("click", async () => {
     const data = await res.json();
     setStatus(
       $("upload-status"),
-      `업로드 완료: ${data.filename} (chunk ${data.chunks_added}개 인덱싱)`,
-      "success"
+      `${data.filename} (chunk ${data.chunks_added}개 인덱싱)`,
+      "success",
+      "업로드 완료:"
     );
     enableStep("step-questions");
   } catch (e) {
@@ -87,7 +98,12 @@ $("generate-btn").addEventListener("click", async () => {
     if (!res.ok) throw new Error(`질문 생성 실패 (${res.status})`);
     const data = await res.json();
     renderQuestions(data.questions);
-    setStatus($("generate-status"), `질문 ${data.questions.length}개 생성됨. 하나를 선택하세요.`, "success");
+    setStatus(
+      $("generate-status"),
+      "아래에서 하나를 선택하세요.",
+      "success",
+      `질문 ${data.questions.length}개 생성됨.`
+    );
     enableStep("step-interview");
   } catch (e) {
     setStatus($("generate-status"), e.message, "error");
