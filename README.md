@@ -68,7 +68,7 @@ flowchart TB
     subgraph ChainA["Chain A - 질문 생성"]
         A1[Retrieval Node<br/>User Docs] --> A2[Generation Node<br/>Gemini Structured Output]
     end
-    subgraph ChainB["Chain B + Agent v3 - 답변 평가"]
+    subgraph ChainB["Chain B + Agent v3 + 멀티턴 루프 - 답변 평가"]
         B1[Retrieval Node<br/>Interview KB] --> B2[Judge Node<br/>Gemini Structured Output]
         B2 --> BD{Decision<br/>technical_score?}
         BD -->|"0~3점"| B6[Fundamentals Node<br/>개념 자체를 설명]
@@ -76,16 +76,25 @@ flowchart TB
         B3 -->|"topic 전달"| B5[Followup Node<br/>Learning Tip의 topic을<br/>이어받아 꼬리질문 생성]
         BD -->|"7~10점"| B7[Advanced Question Node<br/>심화 질문 생성]
         B6 --> B4[End]
-        B5 --> B4
-        B7 --> B4
+        B5 --> BC{"턴이 남았나?"}
+        B7 --> BC
+        BC -->|"종료"| B4
+        BC -->|"계속"| B8[Await Answer<br/>interrupt로 대기]
+        B8 -.->|"사용자 재답변<br/>Command resume"| B1
     end
 ```
+
+점선이 **사이클**입니다. 코칭을 받은 사용자가 다시 답하면 검색부터 되돌아가 새 질문으로 다시 채점합니다.
 
 **technical_score 구간에 따라 세 갈래 중 하나가 실행됩니다.** 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 Agent 형태입니다.
 
 분기를 설계할 때 기준으로 삼은 것은 "갈래 수를 늘리자"가 아니라 **"점수대마다 필요한 코칭의 종류가 다르다"**였습니다. 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무 노드도 실행되지 않아 한쪽 경로가 비어 있었는데, 이 확장으로 모든 점수대에서 결과가 나옵니다.
 
 4~6점 경로에서 Learning Tip과 Followup을 병렬이 아닌 순차로 설계한 이유는 이렇습니다. 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험이 있어, Learning Tip이 먼저 핵심 주제(topic)를 정하고 Followup이 그 결과를 이어받도록 했습니다.
+
+**사이클이 LangGraph를 쓰는 근거입니다.** 조건부 분기와 순차 실행까지는 LCEL의 `RunnableBranch`로도 표현할 수 있어서, 3분기 구조만으로는 "그럴 거면 LCEL로도 되지 않나"라는 반문에 답할 수 없었습니다. 코칭을 받은 사용자가 다시 답하고 그 답을 또 채점하려면 실행이 되돌아가야 하고, 그 중간에 사람의 입력을 기다리며 멈췄다 재개해야 합니다(`interrupt` / `Command(resume=...)`). 이건 LCEL로는 만들 수 없는 구조입니다.
+
+0~3점 경로만 루프에서 빠지는데, 개념 자체를 모르는 사람에게 같은 주제를 다시 묻는 건 코칭이 아니라 압박이라고 봤기 때문입니다. 설명을 주고 세션을 마칩니다.
 
 두 체인 모두 LangChain LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 분리해 (1) 문제 발생 시 어느 단계인지 바로 특정할 수 있고, (2) 평가 점수에 따른 조건부 분기(Agent)를 Node 단위로 추가할 수 있도록 설계했습니다. 기존 LCEL 코드(`rag/chains.py`)는 삭제하지 않고 그대로 보존해, Migration 과정 자체를 코드로 증명할 수 있게 했습니다.
 
@@ -102,6 +111,8 @@ flowchart TB
 - **LangGraph 마이그레이션 검증에 Calibration Set을 회귀 테스트로 재사용**: LCEL에서 LangGraph로 Migration한 이후에도 기존 Judge 동작이 유지되는지 확인하기 위해, 그래프로 옮긴 뒤 동일한 Calibration Set을 재실행(88.2%)함. 실패 케이스가 LCEL 버전에서도 존재했던 경계선 변동과 동일함을 확인했고, 마이그레이션이 새로운 오분류를 만들지 않았음을 검증.
 - **라우팅 로직을 순수 함수로 분리해두면 LLM 호출 없이 전수 검증이 가능함**: Agent를 점수 구간별 3분기로 확장할 때, 분기 함수(`decide_next_step`)가 State만 받는 순수 함수라 Gemini 호출 없이 0~10점 11개 값을 전부 검증할 수 있었음. 이전 경계값 검증(Agent v1)에서는 특정 점수가 나오는 답변을 LLM으로 만들어내야 해서 0/5/10 세 지점만 확인했던 것과 대비됨. 노드와 라우팅을 분리한 구조의 실질적 이점.
 - **순차 설계의 비용을 배포 후 측정으로 수치화함**: Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 겨냥하게 하려는 설계였는데, 그 대가가 얼마인지는 몰랐음. 배포 후 분기별 응답 시간을 재보니 Gemini 호출이 3회인 구간(4~6점)이 2회인 구간보다 약 4~6초 느렸음. 동시에 기준선(`GET /`)이 전체의 0.2% 미만이고 EC2(t3.small)가 로컬 맥북보다 느리지 않아, **병목이 서버 연산이나 네트워크가 아니라 LLM 응답 대기**임을 확인. 인스턴스 사양을 올려도 응답 시간은 줄지 않는다.
+- **LLM을 호출하지 않고 루프 동작을 검증하는 방법**: 멀티턴 사이클을 테스트하려면 여러 턴을 돌려야 해서 매번 Gemini를 호출하면 CI에서 돌릴 수 없었음. 노드를 전부 가짜로 갈아끼우고 **judge 노드의 호출 횟수를 세는 방식**으로 사이클을 증명. 답변을 두 번 제출했을 때 judge와 retrieval이 각각 2회 호출됐다면 실행이 실제로 되돌아간 것. interrupt/resume, 질문 교체, history 누적, MAX_TURNS 종료, 세션 격리까지 전부 API 키 없이 검증(테스트 10개). 회귀가 나기 쉬운 부분(라우팅·상태 전이)이 키 없이 검증 가능한 계층에 몰려 있다는 패턴이 Agent 3분기 확장에 이어 재확인됨
+- **멀티턴에서는 "답변을 미리 준비하는" 검증 방식이 성립하지 않음**: 실제 Gemini로 루프를 돌릴 때 답변 3개를 미리 정해두고 순서대로 넣었더니, 질문이 턴마다 동적으로 바뀌면서 3턴째에 동문서답이 되어 점수가 8점에서 2점으로 급락. 버그가 아니라 Judge가 질문·답변 불일치를 정확히 잡아낸 것이었음. 단발성 검증에서 쓰던 "고정된 입력 → 기대 출력" 방식이 대화형 구조에서는 그대로 통하지 않는다는 것을 확인
 - **Agent 확장 시 병렬보다 순차가 나은 경우가 있음**: Learning Tip과 Followup을 처음엔 병렬 노드로 설계했으나, 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험을 발견. Learning Tip이 먼저 topic을 정하고 Followup이 그 결과를 이어받는 순차 구조로 변경해, 두 출력이 항상 같은 주제를 가리키도록 함.
 
 ## Tech Stack
@@ -128,6 +139,7 @@ flowchart TB
 - Embedding 비교를 20문항 평가셋으로 재실행한 결과, 기존 5문항 표본(Gemini 우세) 결론이 뒤집혀 ko-sroberta-multitask가 Top-1 100%·Faithfulness 0.9708로 근소 우세해 최종 임베딩으로 채택
 - FastAPI로 Docker 패키징·EC2 배포·CI/CD 파이프라인을 구축하고, 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
 - 배포한 서버를 응답 시간·프로세스 상태·패킷 세 계층에서 관찰해, "응답이 느린 원인은 LLM 대기"라는 결론을 서로 독립적인 세 각도로 교차 검증 ([분석 보고서](#문서))
+- 그래프에 사이클을 도입해 멀티턴 면접 루프를 구현하고(`interrupt`로 멈췄다 `Command(resume)`으로 재개), 조건부 분기만으로는 답할 수 없던 "왜 LCEL이 아니라 LangGraph인가"에 구조로 답함
 
 ## API
 
@@ -162,6 +174,27 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 | 7~10 | `advanced_question_generated` | `advanced_question` (question, intent) |
 
 `followup_question`은 `learning_tip.topic`을 이어받아 동일 주제를 겨냥합니다.
+
+### `POST /interview/start` · `POST /interview/answer`
+멀티턴 세션입니다. 위 `/evaluate-answer`가 단발성이라면, 이쪽은 코칭을 받은 뒤 다시 답하는 흐름을 최대 3턴까지 이어갑니다.
+
+```bash
+# 세션 시작 (session_id 발급)
+curl -X POST http://127.0.0.1:8000/interview/start \
+  -H "Content-Type: application/json" \
+  -d '{"question": "JWT란 무엇인가?", "answer": "토큰 기반 인증 방식입니다."}'
+
+# 받은 next_question에 답해 다음 턴 진행
+curl -X POST http://127.0.0.1:8000/interview/answer \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "...", "answer": "..."}'
+```
+
+응답에는 `turn`, `status`(`awaiting_answer` | `completed`), `next_question`, `end_reason`, 그리고 지난 턴 기록인 `history`가 함께 담깁니다. 종료된 세션에 답변을 보내면 409, 없는 세션이면 404입니다.
+
+실제 실행 예시로, 한 세션에서 점수가 8 → 9 → 10으로 오르며 질문이 "JWT란 무엇인가" → "LocalStorage와 Cookie 저장의 취약점" → "HttpOnly 쿠키의 Cross-Origin 전송"으로 점점 깊어졌습니다. 심화 질문이 직전 답변을 전제로 생성되기 때문입니다.
+
+> 세션은 `MemorySaver`에 보관되므로 서버를 재시작하면 진행 중이던 세션이 사라집니다. 단일 인스턴스 데모 기준이며, 영속화가 필요하면 `SqliteSaver`로 교체하면 됩니다.
 
 ## 실행 방법
 

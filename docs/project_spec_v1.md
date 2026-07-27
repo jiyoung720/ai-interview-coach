@@ -39,6 +39,22 @@ v2까지는 `technical_score < 5` 하나로만 갈렸고 점수가 높으면 아
 
 4~6점 경로에서는 Learning Tip이 먼저 실행되어 핵심 약점(topic)을 정하고, Followup이 그 topic을 이어받아 동일 주제의 꼬리질문을 생성한다 (병렬이 아닌 순차 설계, 이유는 설계 이력 참고).
 
+### 멀티턴 세션 그래프 (Phase 11)
+```
+START → Retrieval → Judge → Decision
+  ↑                            ├ (0~3점)  Fundamentals → END        (다음 질문이 없어 루프 제외)
+  │                            ├ (4~6점)  Learning Tip → Followup ─┐
+  │                            └ (7~10점) Advanced ────────────────┤
+  │                                                        decide_continue
+  │                                                          ├ "end"      → END
+  └────────── await_answer (interrupt로 대기) ←──────────────┘
+```
+`rag/graph.py`의 `build_interview_session_graph()`. 위 단발성 그래프와 **노드는 전부 공유하고 배선만 다르다.**
+
+`await_answer` 노드가 `interrupt()`를 호출하면 실행이 그 자리에서 멈추고 State가 checkpointer에 저장된다. 사용자의 답변을 `Command(resume=답변)`으로 넘겨 재개하면 `retrieval`로 이어져 새 질문으로 다시 채점한다. **이 사이클이 LangGraph를 쓰는 근거다.** 조건부 분기까지는 LCEL의 `RunnableBranch`로도 가능하지만, 되돌아가는 흐름과 실행 중간에 멈췄다 재개하는 동작은 LCEL로 표현할 수 없다.
+
+기존 `build_interview_agent_graph()`를 고치지 않고 따로 둔 이유는 `/evaluate-answer`와 Calibration 스크립트들이 그대로 동작해야 하기 때문이다(LCEL 코드를 보존한 것과 같은 방식).
+
 ### State 스키마 (`rag/graph_state.py`)
 ```python
 class InterviewState(TypedDict, total=False):
@@ -53,8 +69,16 @@ class InterviewState(TypedDict, total=False):
     learning_tip: LearningTip                   # 4~6점 경로
     followup_question: str                      # 4~6점 경로
     advanced_question: AdvancedQuestion         # 7~10점 경로
+
+    # 멀티턴 루프 (Phase 11). 세션 그래프에서만 채워진다
+    turn: int                                   # 현재 턴 번호
+    history: list[dict]                         # 지난 턴 요약 (질문/답변/점수/경로)
+    next_question: str                          # 다음 턴에 물을 질문
+    end_reason: str                             # 루프 종료 사유
 ```
 점수 구간에 따라 셋 중 한 경로만 실행되므로 나머지 키는 State에 존재하지 않는다. API 레이어에서 `.get()`으로 조회해 없으면 `null`로 응답한다.
+
+멀티턴에서는 `question`/`answer`/`evaluation_result`가 턴마다 덮어써지므로, 이전 턴의 내용은 `await_answer` 노드가 `history`에 옮겨 담는다.
 
 ### API
 | Endpoint | 역할 |
@@ -63,7 +87,9 @@ class InterviewState(TypedDict, total=False):
 | `GET /health` | 헬스체크 (LLM 없는 기준선, healthcheck/CI/성능 측정에 사용) |
 | `POST /documents` | User Docs 업로드 + 인덱싱 |
 | `POST /generate-question` | Chain A 실행 |
-| `POST /evaluate-answer` | Chain B + Agent 실행. 점수 구간에 따라 `concept_explanation` / (`learning_tip` + `followup_question`) / `advanced_question` 중 하나가 채워지고, `next_action`으로 실행된 경로를 알 수 있다 |
+| `POST /evaluate-answer` | Chain B + Agent 실행 (단발성). 점수 구간에 따라 `concept_explanation` / (`learning_tip` + `followup_question`) / `advanced_question` 중 하나가 채워지고, `next_action`으로 실행된 경로를 알 수 있다 |
+| `POST /interview/start` | 멀티턴 세션 시작. 첫 질문·답변으로 1턴을 실행하고 `session_id`를 발급 |
+| `POST /interview/answer` | `session_id`와 답변으로 다음 턴 진행. 종료된 세션은 409, 없는 세션은 404 |
 
 ### 프론트엔드
 순수 HTML/CSS/JS 단일 페이지(`static/`). FastAPI가 정적 파일을 직접 서빙하므로 별도 프론트 서버·CORS 설정·빌드 단계가 없다. 업로드 → 질문 생성 → 답변 평가의 3단계 흐름을 화면으로 연결하고, 점수 구간별 코칭(개념 설명/학습 팁+꼬리질문/심화 질문)을 뱃지·색상으로 구분해 렌더링한다. 단일 페이지 데모에 SPA 프레임워크(React 등)는 과하다고 판단해 의도적으로 배제.
@@ -95,7 +121,8 @@ class InterviewState(TypedDict, total=False):
 ## 5. 한계와 다음 단계
 
 - Embedding 비교는 20문항 세트로 재실행 완료(ko-sroberta 근소 우세로 최종 채택). 다만 Gemini의 실패 케이스(`http.md`→`cors.md` 혼동) 원인은 추가 분석하지 않고 보류(우선순위 낮음)
-- **그래프에 사이클이 없음**: Phase 7에서 점수 구간별 3분기로 확장해 "점수가 높으면 아무 동작도 하지 않는" 빈 경로는 해소했으나, 여전히 모든 경로가 한 방향으로 흐르고 끝난다. "조건부 분기만 할 것이면 LCEL로도 가능하지 않은가"라는 반문에 답하려면 사이클이 필요하며, 멀티턴 루프(Future Work 최우선)로 대응 예정
+- **세션 상태가 서버 메모리에만 있음**: Phase 11의 멀티턴 루프는 `MemorySaver`로 세션을 보관한다. 컨테이너를 재시작하면 진행 중이던 세션이 사라지고, 인스턴스를 여러 개로 늘리면 세션이 특정 인스턴스에 묶인다. 실사용 규모에서는 `SqliteSaver`나 Postgres 기반 checkpointer로 교체해야 한다(단일 인스턴스 데모라 현재는 감수)
+- **프론트엔드가 아직 단발성 구조**: 멀티턴 API(`/interview/*`)는 동작하지만, 화면은 Phase 10의 3단계 카드 흐름이라 턴이 쌓이는 대화형 UI로 재설계가 필요하다
 - **Retrieval 지표의 변별력 재확인 필요**: Context Precision 1.0000은 KB 2개 시절 만점과 같은 "측정 조건 미충족"일 가능성이 있음 (KB 확장 후 재측정 항목으로 관리)
 - **응답 지연을 코드로는 줄일 수 없음**: Phase 8 ⑤~⑦에서 시간·프로세스 상태·패킷 세 각도로 측정한 결과, 지연의 대부분이 Gemini 응답 대기였다. 서버 연산도 네트워크도 병목이 아니므로 인스턴스 사양을 올려도 개선되지 않는다. 줄이려면 설계를 바꿔야 한다(스트리밍 응답, 병렬 호출, 캐싱). 현재는 순차 설계의 대가를 알고 유지하는 상태
 - **HTTPS 미적용**: WireShark 캡처로 요청·응답 JSON이 평문으로 노출되는 것을 직접 확인했다. 데모 단계라 감수하고 있으나, 실사용자를 받으려면 TLS가 선행되어야 한다
@@ -435,9 +462,23 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - [x] `GET /`를 데모 페이지로, 헬스체크는 `/health`로 분리(compose/CI/성능 측정 함께 갱신), Dockerfile에 `static/` COPY 추가
 - [x] 로컬 uvicorn과 Docker 컨테이너 양쪽에서 서빙 확인, 브라우저로 전체 흐름(업로드/질문생성/평가/코칭 분기) end-to-end 검증
 
+### Phase 11: 멀티턴 면접 루프 (완료)
+그래프가 한 방향으로 흐르고 끝나던 구조에 사이클을 도입. "조건부 분기만 할 것이면 LCEL로도 가능하지 않은가"라는 반문에 답하는 것이 목적이었다.
+
+- [x] `await_answer` 노드에서 `interrupt()`로 실행을 멈추고, `Command(resume=답변)`으로 재개하는 구조 구현
+- [x] `followup`/`advanced` → `await_answer` → `retrieval` 사이클 배선 (질문이 바뀌었으므로 검색부터 다시)
+- [x] 0~3점(`fundamentals`)은 다음 질문을 만들지 않으므로 루프에서 제외. 개념을 모르는 상태에서 같은 주제를 재질문하는 것은 코칭으로 부적절하다고 판단
+- [x] 종료 조건 `MAX_TURNS = 3`. `decide_continue()`도 순수 함수라 LLM 없이 경계값 검증
+- [x] `build_interview_agent_graph()`(단발성)를 그대로 두고 세션 그래프를 따로 추가. `/evaluate-answer`와 Calibration 스크립트의 동작 보존
+- [x] `POST /interview/start`, `POST /interview/answer` 추가. `thread_id`로 세션을 구분하고, 종료된 세션은 409·없는 세션은 404로 구분 응답
+- [x] **노드를 가짜로 대체한 루프 회귀 테스트 10개**: judge 호출 횟수로 사이클을 증명하는 방식이라 API 키 없이 CI에서 실행 가능
+- [x] checkpoint 직렬화 허용 타입을 명시(`JsonPlusSerializer(allowed_msgpack_modules=[...])`). 기본값이 "전체 허용 + 경고"이고 향후 버전에서 차단 예정이라 미리 고정
+- [x] 실제 Gemini로 검증: 한 세션에서 8점 → 9점 → 10점으로 이어지며 심화 질문이 점점 깊어지는 것, 다른 실행에서 세 경로(fundamentals/followup/advanced)가 모두 나오는 것 확인
+
 ### Future Work / 선택
-- [ ] **멀티턴 면접 루프**: 생성된 꼬리질문에 사용자가 다시 답하고 Judge로 되돌아가는 사이클 구조. 종료 조건(점수 도달 / 최대 턴 수 / 개선 없음) 설계 필요. 프론트엔드가 이미 있으므로, 루프를 붙이면 대화형 UI로 바로 확장 가능.
-  - 현재 그래프에는 사이클이 없어 "조건부 분기만 할 것이면 LCEL로도 가능하지 않은가"라는 반문에 답하기 어렵다. 루프를 도입하면 LangGraph 채택 근거가 명확해지므로, Future Work 중 우선순위가 가장 높다.
+- [ ] **세션 영속화**: 현재 `MemorySaver`라 재시작 시 세션이 소실된다. `SqliteSaver`로 바꾸면 volume에 남길 수 있다(이미 `chroma_db`를 volume에 두고 있어 같은 방식으로 처리 가능).
+- [ ] **대화형 프론트엔드**: 멀티턴 API를 화면에 붙이려면 3단계 카드에서 턴이 쌓이는 구조로 재설계 필요.
+- [ ] **종료 조건에 "개선 없음" 추가** (선택): history에 턴별 점수가 쌓이므로 구현 자체는 간단하나, 몇 점 차이를 "개선 없음"으로 볼지 정할 근거가 아직 없어 보류.
 - [ ] **KB 확장 (18개 → 25~30개) 및 전체 재측정** (선택)
   - 배경: 현재 Context Precision 1.0000, Faithfulness 0.9708이지만, KB 2개 문서 시절에도 같은 이유로 만점이 나왔다가 "측정 조건 미충족"으로 판명된 전례가 있다. 18개(chunk 29개)에 `k=3`이면 여전히 변별력이 부족할 가능성이 있다.
   - 주의: KB 변경은 Retrieval 평가·임베딩 비교 결과를 모두 무효화하므로, 과제 진행 중에는 착수하지 않고 baseline을 유지한다. 확장 시 20문항 평가셋 전체 재실행이 필요하다.
