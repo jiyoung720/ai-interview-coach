@@ -223,18 +223,92 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow
   line-height: 1;
 }
 
-#selected-question.active { color: var(--text); font-weight: 500; }
+/* ===== 멀티턴 면접 ===== */
+.step-head .turn-badge {
+  margin-left: auto;
+  font-size: 12px; font-weight: 600;
+  color: var(--accent-text); background: var(--accent-soft);
+  padding: 4px 12px; border-radius: 100px;
+}
 
-/* ===== 평가 결과 ===== */
-#result { margin-top: 18px; }
-.result-box {
+/* 지금 답해야 할 질문 */
+.current-question {
+  margin: 18px 0 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+}
+.current-question .q-label {
+  display: inline-block;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--accent-text);
+  margin-bottom: 6px;
+}
+.current-question p { margin: 0; font-size: 15px; font-weight: 500; }
+
+/* 턴이 쌓이는 타임라인 */
+#timeline { margin-top: 18px; }
+.turn {
+  position: relative;
   border: 1px solid var(--divider);
   border-radius: var(--radius-sm);
-  padding: 22px;
-  margin-top: 12px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
   background: var(--field-bg);
   animation: fadeUp 0.35s ease;
 }
+.turn-head {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--divider);
+}
+.turn-no {
+  font-size: 13px; font-weight: 700;
+  color: var(--text-soft);
+}
+.turn-head .score-row { margin: 0 0 0 auto; }
+
+/* 질문/답변 말풍선 */
+.bubble {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 9px;
+}
+.bubble-label {
+  display: block;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+.bubble p { margin: 0; font-size: 14px; }
+.bubble.q { background: var(--accent-soft); }
+.bubble.a { background: var(--bg); border: 1px solid var(--field-border); }
+
+.turn-result { margin-top: 14px; }
+.turn-result h4 {
+  margin: 14px 0 5px; font-size: 13px; font-weight: 600;
+  color: var(--text-soft);
+}
+.turn-result ul { margin: 4px 0; padding-left: 20px; font-size: 14px; }
+.turn-result ul li { margin-bottom: 3px; }
+.turn-result > p { margin: 4px 0; font-size: 14px; }
+
+/* 세션 종료 안내 */
+.session-end {
+  margin-top: 18px; padding: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--good-bg);
+  text-align: center;
+}
+.session-end p {
+  margin: 0 0 14px;
+  color: var(--good); font-weight: 600; font-size: 15px;
+}
+
+/* 턴 카드가 나타날 때 쓰는 애니메이션 */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .score-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -246,14 +320,6 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow
 .score-badge.good { background: var(--good-bg); color: var(--good); }
 .score-badge.mid  { background: var(--mid-bg);  color: var(--mid); }
 .score-badge.bad  { background: var(--bad-bg);  color: var(--bad); }
-
-.result-box h4 {
-  margin: 18px 0 6px; font-size: 14px; font-weight: 600;
-  color: var(--text-soft); letter-spacing: 0.01em;
-}
-.result-box ul { margin: 4px 0; padding-left: 20px; }
-.result-box ul li { margin-bottom: 3px; }
-.result-box p { margin: 4px 0; }
 
 /* ===== 코칭 블록 (점수 구간별) ===== */
 .coaching {
