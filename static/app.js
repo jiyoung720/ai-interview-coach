@@ -245,10 +245,23 @@ function advancedBlock(adv) {
   return d;
 }
 
+// LLM 생성 텍스트에 가끔 섞여 나오는 서식 군더더기를 제거한다.
+// followup은 structured output이 아니라 자유 텍스트라, 프롬프트로 막아도
+// 100% 보장되지 않으므로 표시 계층에서 한 번 더 방어한다.
+function cleanText(text) {
+  if (typeof text !== "string") return text;
+  return text
+    .replace(/\*\*/g, "")                 // 볼드 마크다운(**)
+    .replace(/^#+\s*/gm, "")              // 헤더(#)
+    .replace(/\[?꼬리\s*질문\]?\s*[:：]?/g, "")  // "[꼬리 질문]" 같은 라벨
+    .replace(/^["'“”]|["'“”]$/g, "")      // 양끝 따옴표
+    .trim();
+}
+
 // 작은 헬퍼들
 function el(tag, text) {
   const e = document.createElement(tag);
-  e.textContent = text;
+  e.textContent = cleanText(text);
   return e;
 }
 function list(items) {

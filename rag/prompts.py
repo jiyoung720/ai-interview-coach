@@ -80,6 +80,9 @@ FOLLOWUP_PROMPT = ChatPromptTemplate.from_template("""
 
 꼬리질문은 [Focus Topic]에서 다루는 내용을 확인하는 것이어야 하며,
 원래 질문의 범위를 벗어나지 않아야 합니다.
+
+출력은 질문 문장 그 자체만 작성하세요. 마크다운 서식(**, # 등),
+"[꼬리질문]" 같은 라벨, 따옴표로 감싸는 것 없이 순수 텍스트로만 출력합니다.
 """)
 
 # fundamentals_node가 사용 (0~3점). 빈칸은 question, answer, context 3개
