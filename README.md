@@ -127,6 +127,7 @@ flowchart TB
 - Retrieval 전용 평가셋(20문항)을 구축하고, 문서 분리 전략을 "완결된 근거 단위" 기준으로 재설계해 Top-1 정확도 100%·Faithfulness 0.9708까지 개선
 - Embedding 비교를 20문항 평가셋으로 재실행한 결과, 기존 5문항 표본(Gemini 우세) 결론이 뒤집혀 ko-sroberta-multitask가 Top-1 100%·Faithfulness 0.9708로 근소 우세해 최종 임베딩으로 채택
 - FastAPI로 Docker 패키징·EC2 배포·CI/CD 파이프라인을 구축하고, 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
+- 배포한 서버를 응답 시간·프로세스 상태·패킷 세 계층에서 관찰해, "응답이 느린 원인은 LLM 대기"라는 결론을 서로 독립적인 세 각도로 교차 검증 ([분석 보고서](#문서))
 
 ## API
 
@@ -186,7 +187,7 @@ docker compose up -d
 `main` 브랜치에 푸시하면 GitHub Actions가 다음을 자동 수행합니다.
 
 ```
-push → test (회귀 테스트 22개) → docker-build (이미지 빌드 + 스모크 테스트) → deploy (EC2 배포)
+push → test (회귀 테스트 24개) → docker-build (이미지 빌드 + 스모크 테스트) → deploy (EC2 배포)
 ```
 
 - **test**: 분기 로직, 그래프 구조, chunking 등 Gemini API 키가 필요 없는 계층만 검증합니다. 비밀값을 CI에 노출하지 않기 위한 설계이며, 마침 회귀가 가장 나기 쉬운 부분(Agent 분기)이 이 범위에 들어옵니다.
