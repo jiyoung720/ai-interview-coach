@@ -130,9 +130,13 @@ def followup_node(state: InterviewState) -> dict:
     })
     response = llm.invoke(prompt_value)   # structured_output 없이 일반 텍스트로 받음
 
+    question = extract_text(response)   # Gemini 3+ 응답 형식 이슈를 우회해 순수 텍스트만 추출
+
     return {
         "next_action": "followup_generated",
-        "followup_question": extract_text(response),   # Gemini 3+ 응답 형식 이슈를 우회해 순수 텍스트만 추출
+        "followup_question": question,
+        # 멀티턴 그래프에서 다음 턴의 질문으로 쓰인다. 단발성 그래프에서는 아무도 읽지 않음
+        "next_question": question,
     }
 
 
@@ -177,7 +181,69 @@ def advanced_question_node(state: InterviewState) -> dict:
     })
     result = structured_llm.invoke(prompt_value)
 
-    return {"next_action": "advanced_question_generated", "advanced_question": result}
+    return {
+        "next_action": "advanced_question_generated",
+        "advanced_question": result,
+        # followup과 마찬가지로 다음 턴의 질문 자리에 올려둔다
+        "next_question": result.question,
+    }
+
+
+# 멀티턴 루프 (Phase 11) --------------------------------------------------
+# 한 세션에서 최대 몇 턴까지 주고받을지. 무한 루프 방지가 1차 목적이고,
+# 면접 코칭이라는 성격상 3턴이면 "답변 → 코칭 → 재답변 → 확인"이 한 바퀴 돈다.
+MAX_TURNS = 3
+
+
+def await_answer_node(state: InterviewState) -> dict:
+    """다음 턴의 답변을 사용자에게서 받아오는 노드. 그래프 사이클의 연결점이다.
+
+    interrupt()를 호출하면 그래프 실행이 그 자리에서 멈추고, 지금까지의 State가
+    checkpointer에 저장된 채 제어권이 호출자(API)로 돌아간다. 이후 사용자의 답변을
+    Command(resume=답변)으로 넘겨 재개하면, interrupt()가 그 값을 반환하며
+    여기서부터 이어서 실행된다.
+
+    주의: 재개될 때 노드는 처음부터 다시 실행되고 interrupt() 지점에서 저장된 값을
+    돌려받는 방식이다. 그래서 interrupt() 앞에는 부작용이 있는 코드를 두면 안 된다
+    (여기서는 직전 턴 요약을 만드는 순수 계산만 한다)."""
+    from langgraph.types import interrupt
+
+    # 직전 턴의 결과를 기록으로 남긴다. 다음 턴에서 question/answer/evaluation_result가
+    # 덮어써지기 때문에, 남기지 않으면 이전 턴의 내용이 사라진다.
+    finished_turn = {
+        "turn": state["turn"],
+        "question": state["question"],
+        "answer": state["answer"],
+        "technical_score": state["evaluation_result"].technical_score,
+        "completeness_score": state["evaluation_result"].completeness_score,
+        "next_action": state.get("next_action"),
+    }
+
+    next_question = state["next_question"]
+
+    # 여기서 멈춘다. 재개되면 사용자가 보낸 답변 문자열이 반환된다.
+    user_answer = interrupt({
+        "question": next_question,
+        "turn": state["turn"] + 1,
+    })
+
+    # 다음 턴의 입력으로 State를 교체한다. question이 바뀌었으므로 retrieval부터 다시 돈다
+    # (꼬리질문·심화질문은 원래 질문과 초점이 달라, 같은 context를 재사용하면 안 된다).
+    return {
+        "history": state.get("history", []) + [finished_turn],
+        "question": next_question,
+        "answer": user_answer,
+        "turn": state["turn"] + 1,
+    }
+
+
+def decide_continue(state: InterviewState) -> str:
+    """코칭까지 끝난 뒤, 한 턴 더 돌지 종료할지 판단한다.
+
+    decide_next_step과 같은 순수 라우팅 함수라 LLM 호출 없이 전수 검증할 수 있다."""
+    if state.get("turn", 1) >= MAX_TURNS:
+        return "end"
+    return "continue"
 
 
 def decide_next_step(state: InterviewState) -> str:

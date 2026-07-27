@@ -5,6 +5,8 @@ from langgraph.graph import END, START, StateGraph
 
 from rag.graph_nodes import (
     advanced_question_node,
+    await_answer_node,
+    decide_continue,
     decide_next_step,
     followup_node,
     fundamentals_node,
@@ -93,3 +95,107 @@ def build_interview_agent_graph():
     graph.add_edge("advanced", END)             # 7~10점 경로 종료
 
     return graph.compile()
+
+
+def build_interview_session_graph(checkpointer=None):
+    """Phase 11: 멀티턴 면접 루프. 위 그래프에 사이클을 추가한 버전.
+
+    구조:
+        START -> retrieval -> judge -> [점수 구간별 3분기]
+            0~3점 : fundamentals -> END          (다음 질문이 없어 루프하지 않음)
+            4~6점 : learning_tip -> followup ->|
+            7~10점: advanced ----------------->| decide_continue
+                                                    "end"      -> END
+                                                    "continue" -> await_answer
+        await_answer -> retrieval  (여기가 사이클)
+
+    build_interview_agent_graph()와 노드는 전부 공유하고 배선만 다르다.
+    기존 그래프를 고치지 않고 따로 둔 이유는, 단발성 호출(`POST /evaluate-answer`)과
+    Calibration 스크립트들이 그대로 동작해야 하기 때문이다.
+
+    **이 그래프가 LangGraph를 쓰는 근거다.** 지금까지의 구조(조건부 분기 + 순차 실행)는
+    LCEL의 RunnableBranch로도 표현할 수 있었지만, "코칭 -> 사용자 재답변 -> 다시 채점"으로
+    되돌아오는 사이클과 그 중간에서 실행을 멈췄다 재개하는 동작은 LCEL로는 만들 수 없다.
+
+    0~3점 경로만 루프에서 빠지는 이유: fundamentals는 개념을 설명할 뿐 다음 질문을
+    만들지 않는다. 개념 자체를 모르는 상태에서 같은 주제로 재질문하는 것이
+    코칭으로서 적절하지 않다고 보고, 설명을 주고 세션을 마치도록 했다."""
+    graph = StateGraph(InterviewState)
+    graph.add_node("retrieval", retrieval_node)
+    graph.add_node("judge", judge_node)
+    graph.add_node("fundamentals", fundamentals_node)
+    graph.add_node("learning_tip", learning_tip_node)
+    graph.add_node("followup", followup_node)
+    graph.add_node("advanced", advanced_question_node)
+    graph.add_node("await_answer", await_answer_node)   # 사이클의 연결점 (interrupt)
+
+    graph.add_edge(START, "retrieval")
+    graph.add_edge("retrieval", "judge")
+    graph.add_conditional_edges(
+        "judge",
+        decide_next_step,
+        {
+            "fundamentals": "fundamentals",
+            "learning_tip": "learning_tip",
+            "advanced": "advanced",
+        },
+    )
+    graph.add_edge("fundamentals", END)
+    graph.add_edge("learning_tip", "followup")
+
+    # 다음 질문을 만든 두 경로만 "한 턴 더 갈지"를 판단한다
+    for coaching_node in ("followup", "advanced"):
+        graph.add_conditional_edges(
+            coaching_node,
+            decide_continue,
+            {"continue": "await_answer", "end": END},
+        )
+
+    # 사이클: 새 답변을 받았으니 검색부터 다시 (질문이 바뀌었으므로 context도 새로 뽑아야 함)
+    graph.add_edge("await_answer", "retrieval")
+
+    # interrupt로 멈춘 State를 보관할 곳. 이게 없으면 재개할 수 없어 사이클이 성립하지 않는다
+    return graph.compile(checkpointer=checkpointer or _build_checkpointer())
+
+
+def _build_checkpointer():
+    """세션 State를 보관할 checkpointer.
+
+    State에 Pydantic 객체(EvaluationResult 등)가 들어가는데, LangGraph 기본 설정은
+    저장·복원 시 "모든 타입을 허용하되 경고를 띄우는" 상태다. 이 기본값은 향후 버전에서
+    차단될 예정이라고 경고가 명시하고 있어, 우리가 쓰는 스키마만 명시적으로 등록해둔다.
+
+    보안 측면에서도 명시적 허용이 맞다. checkpoint 저장소에 접근할 수 있는 공격자가
+    임의 객체를 넣어 역직렬화 시점에 코드를 실행시키는 경로를 막아준다."""
+    from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+    from rag.schemas import (
+        AdvancedQuestion,
+        ConceptExplanation,
+        EvaluationResult,
+        LearningTip,
+    )
+
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[
+            EvaluationResult,
+            LearningTip,
+            ConceptExplanation,
+            AdvancedQuestion,
+        ]
+    )
+    return MemorySaver(serde=serde)
+
+
+# 세션 그래프는 요청마다 새로 만들면 안 된다. checkpointer(대화 상태)가 함께
+# 새로 만들어져서, 이전 턴의 State를 찾지 못하기 때문이다.
+_session_graph = None
+
+
+def get_interview_session_graph():
+    """멀티턴 세션 그래프의 프로세스 단위 싱글턴."""
+    global _session_graph
+    if _session_graph is None:
+        _session_graph = build_interview_session_graph()
+    return _session_graph

@@ -44,3 +44,10 @@ class InterviewState(TypedDict, total=False):
 
     # 7~10점 경로
     advanced_question: AdvancedQuestion
+
+    # 멀티턴 루프 (Phase 11). 단발성 그래프에서는 쓰이지 않고,
+    # build_interview_session_graph()로 만든 사이클 그래프에서만 채워진다.
+    turn: int                   # 현재 턴 번호 (1부터 시작)
+    history: list[dict]         # 지난 턴들의 요약 기록 (질문/답변/점수/실행 경로)
+    next_question: str          # 다음 턴에 물을 질문 (followup 또는 advanced가 채움)
+    end_reason: str             # 루프가 끝난 이유 (완주/최대 턴 도달 등)
