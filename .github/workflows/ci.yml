@@ -26,10 +26,12 @@ jobs:
       - name: Run tests
         run: uv run pytest -v
 
-  # 2) Docker 빌드: Dockerfile이 깨끗한 환경에서도 빌드되는지 확인한다.
-  # 로컬은 macOS/arm64지만 러너는 linux/amd64라, "내 컴퓨터에서만 되는" 문제와
-  # amd64에서의 CPU torch 설정 동작 여부를 여기서 먼저 잡을 수 있다.
-  # 배포는 하지 않는다 (CD는 EC2 구성 이후 별도 단계).
+  # 2) Docker 빌드 + 이미지 배포: 검증을 통과한 이미지를 Docker Hub에 올린다.
+  #
+  # 빌드를 여기서 하는 이유: 러너가 네이티브 linux/amd64다.
+  # 로컬 맥(arm64)에서 --platform linux/amd64로 빌드하면 QEMU 에뮬레이션을 타는데,
+  # 임베딩 모델을 로드하는 단계에서 멈춰버려 실패했다(두 번 재현).
+  # EC2에서 빌드하는 방법도 있지만 t3.small의 CPU/디스크를 배포 때마다 소모한다.
   docker-build:
     runs-on: ubuntu-latest
     steps:
@@ -37,6 +39,14 @@ jobs:
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
+
+      # main 푸시일 때만 로그인한다. PR에서는 빌드 검증만 하고 올리지 않는다
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build image
         uses: docker/build-push-action@v6
@@ -87,33 +97,61 @@ jobs:
           docker rm -f ci-app > /dev/null
           exit 1
 
-  # 3) 배포(CD): EC2에 SSH로 접속해 최신 코드를 받아 재기동한다.
+      # 여기까지 통과한 이미지만 올린다. 빌드가 됐다는 것과 실제로 뜬다는 것은 다르므로,
+      # CUDA 검사와 스모크 테스트를 먼저 두고 그다음에 push한다.
+      # latest 외에 커밋 SHA 태그도 함께 달아, 문제가 생기면 특정 커밋 이미지로 되돌릴 수 있게 한다.
+      - name: Push to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/ai-interview-coach"
+          docker tag ai-interview-coach:ci "$IMAGE:latest"
+          docker tag ai-interview-coach:ci "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${{ github.sha }}"
+          echo "올린 이미지: $IMAGE:latest, $IMAGE:${{ github.sha }}"
+
+  # 3) 배포(CD): EC2가 Docker Hub에서 이미지를 받아 재기동한다.
   # needs로 앞의 두 job에 의존시켜, 테스트와 빌드가 통과한 경우에만 배포된다.
   # PR에서는 실행되지 않고 main 브랜치 푸시에서만 동작한다.
+  #
+  # EC2는 더 이상 빌드하지 않는다. Docker Hub에서 완성된 이미지를 받아 띄우기만 하므로
+  # 소스 코드도 필요 없고, 배포 시간과 디스크 사용량이 크게 줄어든다.
   deploy:
     needs: [test, docker-build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      # EC2에 필요한 건 compose 파일 하나뿐이다(.env는 비밀값이라 서버에 직접 둔다).
+      # git pull로 소스 전체를 받던 것을 이 파일 전송으로 대체했다.
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: docker-compose-ec2.yml
+          target: ~/ai-interview-coach/
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          # 빌드가 오래 걸릴 수 있어 넉넉히 잡는다
-          command_timeout: 30m
+          # 빌드가 사라져 pull만 하므로 이전(30m)보다 짧게 잡아도 된다
+          command_timeout: 15m
           script: |
             set -e
             cd ~/ai-interview-coach
-            git pull origin main
 
-            # 모델 다운로드 레이어는 코드 COPY보다 앞에 있어 캐시되므로,
-            # 코드만 바뀐 경우 재빌드는 짧게 끝난다
-            docker compose up -d --build
+            # 방금 CI가 올린 최신 이미지를 받아 교체한다
+            docker compose -f docker-compose-ec2.yml pull
+            docker compose -f docker-compose-ec2.yml up -d
 
-            # 이전 빌드의 dangling 이미지를 정리한다.
-            # EBS 용량이 20GB라 누적되면 디스크가 다시 찰 수 있다
+            # 교체 후 참조가 끊긴 이전 이미지를 정리한다.
+            # 이미지가 3GB 가까이 되어 쌓이면 EBS 20GB가 금방 찬다
             docker image prune -f
 
       # 배포된 서버가 실제로 응답하는지 외부에서 확인한다.

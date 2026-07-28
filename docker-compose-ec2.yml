@@ -1,0 +1,36 @@
+# EC2에서 쓰는 Compose 파일.
+#
+# 로컬(docker-compose.yml)과의 차이는 한 줄이다.
+#   로컬 : build: .          -> 소스를 받아 그 자리에서 이미지를 만든다
+#   EC2  : image: <hub경로>  -> 이미 만들어진 이미지를 Docker Hub에서 받아 쓴다
+#
+# 그래서 EC2에는 소스 코드가 필요 없다. 이 파일과 .env만 있으면 된다.
+# 빌드가 사라지므로 EC2의 CPU·디스크 부담과 배포 시간이 함께 줄어든다
+# (기존 방식은 EC2에서 직접 빌드하느라 EBS를 8GB에서 20GB로 늘려야 했다).
+services:
+  app:
+    image: jiyoung720/ai-interview-coach:latest
+    # 맥(arm64)에서 만든 이미지를 amd64 EC2에서 돌리려면 빌드 시점에
+    # --platform linux/amd64를 지정해야 한다. 안 그러면 exec format error가 난다.
+    ports:
+      - "8000:8000"
+    # 비밀값은 이미지에 굽지 않고 런타임에 주입한다. EC2에 .env를 따로 만들어야 한다
+    env_file:
+      - .env
+    volumes:
+      # 벡터 인덱스와 업로드 파일을 컨테이너 밖에 보존.
+      # 이게 없으면 컨테이너를 다시 만들 때마다 KB 인덱싱이 처음부터 다시 돈다
+      - chroma_data:/app/chroma_db
+      - uploads_data:/app/data/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      # 최초 기동 시 KB 인덱싱이 돌 수 있어 시작 유예를 넉넉히 준다
+      start_period: 120s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  uploads_data:
