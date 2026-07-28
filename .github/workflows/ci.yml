@@ -136,15 +136,26 @@ jobs:
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           # 빌드가 사라져 pull만 하므로 이전(30m)보다 짧게 잡아도 된다
           command_timeout: 15m
+          # 토큰이 스크립트에 직접 들어가면 프로세스 목록에 노출되므로 환경변수로 넘긴다.
+          # GitHub Actions는 secret 값을 로그에서 자동으로 가린다.
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN
           script: |
             set -e
             cd ~/ai-interview-coach
+
+            # 저장소가 private이라 pull 전에 인증이 필요하다.
+            # EC2에 수동으로 로그인해두는 대신 배포할 때마다 로그인하면,
+            # 인스턴스를 새로 만들어도 별도 준비 없이 그대로 동작한다.
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
             # 방금 CI가 올린 최신 이미지를 받아 교체한다
             docker compose -f docker-compose-ec2.yml pull
