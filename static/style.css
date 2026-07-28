@@ -144,11 +144,16 @@ header h1 {
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
+/* 말풍선 꼬리가 아래로 뻗어 있어, 글자와 시각적 중심을 맞추려면 살짝 올려야 한다 */
+.logo { width: 30px; height: 30px; flex-shrink: 0; margin-top: 2px; }
 .subtitle {
   color: var(--text-soft);
   margin: 12px 0 0;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 /* ===== 레이아웃 ===== */
