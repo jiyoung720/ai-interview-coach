@@ -1,5 +1,7 @@
 # Gemini가 with_structured_output()으로 반환해야 하는 데이터의 "틀(스키마)" 정의.
 # 각 노드가 자유 텍스트가 아니라 아래 구조에 맞는 객체를 받도록 강제한다.
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -8,10 +10,27 @@ class InterviewQuestions(BaseModel):
     questions: list[str]
 
 
-# judge_node가 반환. 채점 결과이며, decide_next_step이 여기의 technical_score를 읽어 분기함
+# 감점 항목 하나. 만점에서 무엇 때문에 얼마나 깎였는지를 사용자에게 보여주기 위한 단위.
+# "왜 이 점수인지 납득이 안 된다"는 문제를 점수 자체가 아니라 근거로 해소한다.
+class Deduction(BaseModel):
+    reason: str = Field(description="무엇이 부족해서 감점했는지 한 문장")
+    points: int = Field(ge=1, le=10, description="이 항목으로 깎은 점수")
+
+
+# judge_node가 반환. 채점 결과이며, decide_next_step이 여기의 technical_score를 읽어 분기함.
+#
+# 필드 순서에 의도가 있다: structured output은 정의된 순서대로 생성되므로,
+# deductions를 technical_score보다 앞에 두어 "깎을 것을 먼저 세고 그 합을 10에서 빼는"
+# 흐름을 유도한다. 점수를 먼저 내면 감점 목록이 사후 정당화가 되어 둘이 어긋나기 쉽다.
 class EvaluationResult(BaseModel):
-    technical_score: int = Field(ge=0, le=10, description="기술적 정확성")   # ge/le = 0~10 사이 정수만 허용
+    deductions: list[Deduction] = Field(
+        description="10점 만점에서 깎은 항목들. 만점이면 빈 목록"
+    )
+    technical_score: int = Field(ge=0, le=10, description="기술적 정확성. 10에서 deductions 합을 뺀 값")
     completeness_score: int = Field(ge=0, le=10, description="설명의 완성도")
+    level: Literal["junior", "middle", "senior"] = Field(
+        description="이 답변이 보여주는 역량 수준. 지원자의 연차가 아니라 답변 하나의 수준"
+    )
     strengths: list[str]        # 답변의 강점 목록
     improvements: list[str]     # 보완할 약점 목록 → learning_tip_node의 입력이 됨
     overall_feedback: str       # 전반적 피드백 한두 문장

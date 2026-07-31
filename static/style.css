@@ -379,6 +379,40 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .score-badge.mid  { background: var(--mid-bg);  color: var(--mid);  border-color: var(--mid-border); }
 .score-badge.bad  { background: var(--bad-bg);  color: var(--bad);  border-color: var(--bad-border); }
 
+/* ===== 연차 레벨 뱃지 ===== */
+.level-badge {
+  padding: 3px 9px; border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border-strong);
+  color: var(--text-soft);
+}
+/* 레벨은 점수와 달리 우열이 아니라 성격에 가까우므로, 색을 세게 쓰지 않고
+   시니어만 포인트색으로 구분한다 */
+.level-badge.senior { border-color: var(--accent); color: var(--accent-text); }
+
+/* ===== 감점 내역 ===== */
+.deductions {
+  margin-top: 14px; padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.deductions h4 { margin-top: 0; }
+.deductions ul { list-style: none; padding: 0; margin: 6px 0 0; }
+.deductions li {
+  display: flex; gap: 8px; align-items: baseline;
+  font-size: 14px; color: var(--text-soft);
+  margin-bottom: 6px;
+}
+.deductions li:last-child { margin-bottom: 0; }
+.deduct-points {
+  flex-shrink: 0;
+  font-size: 12px; font-weight: 600;
+  color: var(--bad);
+  font-variant-numeric: tabular-nums;
+  min-width: 22px;
+}
+
 /* ===== 코칭 블록 ===== */
 .coaching {
   margin-top: 16px; padding: 16px;

@@ -13,8 +13,10 @@ from rag.schemas import EvaluationResult
 def make_state(technical_score: int) -> dict:
     return {
         "evaluation_result": EvaluationResult(
+            deductions=[],
             technical_score=technical_score,
             completeness_score=5,
+            level="middle",
             strengths=[],
             improvements=[],
             overall_feedback="",
@@ -47,7 +49,17 @@ def test_technical_score는_0에서_10_범위로_강제된다():
     # Judge가 범위 밖 점수를 반환하면 분기 기준 자체가 무너지므로 스키마에서 막는다
     with pytest.raises(ValueError):
         EvaluationResult(
-            technical_score=11, completeness_score=5,
+            deductions=[], technical_score=11, completeness_score=5, level="middle",
+            strengths=[], improvements=[], overall_feedback="",
+        )
+
+
+def test_level은_정해진_세_값만_허용된다():
+    # 자유 문자열로 두면 Judge가 "주니어", "Junior", "entry" 등 제각각 반환해
+    # 화면에서 분기 처리를 할 수 없다
+    with pytest.raises(ValueError):
+        EvaluationResult(
+            deductions=[], technical_score=5, completeness_score=5, level="주니어",
             strengths=[], improvements=[], overall_feedback="",
         )
 

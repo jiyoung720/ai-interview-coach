@@ -41,8 +41,10 @@ def _patch_nodes(monkeypatch, judge_scores):
         counter["judge_calls"] += 1
         return {
             "evaluation_result": EvaluationResult(
+                deductions=[],
                 technical_score=score,
                 completeness_score=score,
+                level="middle",
                 strengths=["강점"],
                 improvements=["개선점"],
                 overall_feedback="피드백",

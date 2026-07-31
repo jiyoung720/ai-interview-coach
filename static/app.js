@@ -228,6 +228,11 @@ function appendTurn(data, question, answer) {
 
   const evaluation = data.evaluation;
   if (evaluation.overall_feedback) result.appendChild(el("p", evaluation.overall_feedback));
+  // 감점 내역을 강점·개선점보다 앞에 둔다. 점수를 본 직후에 "왜"가 바로 이어져야
+  // 납득이 되고, 뒤로 밀리면 점수와 근거가 따로 읽힌다
+  if (evaluation.deductions?.length) {
+    result.appendChild(deductionBlock(evaluation.deductions));
+  }
   if (evaluation.strengths?.length) {
     result.appendChild(el("h4", "강점"));
     result.appendChild(list(evaluation.strengths));
@@ -293,6 +298,10 @@ function scoreClass(score) {
   return "bad";
 }
 
+// 연차 레벨 표기. 서버는 영문 값으로 주고 화면에서만 한글로 바꾼다
+// (값이 화면 문구와 묶이면 나중에 표현을 바꿀 때 서버까지 건드려야 한다)
+const LEVEL_LABEL = { junior: "주니어 수준", middle: "미들 수준", senior: "시니어 수준" };
+
 function scoreBadges(evaluation) {
   const wrap = document.createElement("div");
   wrap.className = "score-row";
@@ -300,7 +309,34 @@ function scoreBadges(evaluation) {
     <span class="score-badge ${scoreClass(evaluation.technical_score)}">기술 ${evaluation.technical_score}/10</span>
     <span class="score-badge ${scoreClass(evaluation.completeness_score)}">완성도 ${evaluation.completeness_score}/10</span>
   `;
+  if (evaluation.level && LEVEL_LABEL[evaluation.level]) {
+    const lv = document.createElement("span");
+    lv.className = "level-badge " + evaluation.level;
+    lv.textContent = LEVEL_LABEL[evaluation.level];
+    wrap.appendChild(lv);
+  }
   return wrap;
+}
+
+// 만점에서 무엇 때문에 깎였는지 보여준다.
+// 점수만 주면 납득이 안 되므로, 감점 항목을 근거로 제시한다
+function deductionBlock(deductions) {
+  const d = document.createElement("div");
+  d.className = "deductions";
+  d.appendChild(el("h4", "감점 내역"));
+
+  const list = document.createElement("ul");
+  deductions.forEach((item) => {
+    const li = document.createElement("li");
+    const pts = document.createElement("span");
+    pts.className = "deduct-points";
+    pts.textContent = `-${item.points}`;
+    li.appendChild(pts);
+    li.appendChild(document.createTextNode(cleanText(item.reason)));
+    list.appendChild(li);
+  });
+  d.appendChild(list);
+  return d;
 }
 
 function bubble(label, text, kind) {
