@@ -1,6 +1,7 @@
 # AI Interview Coach with RAG - 프로젝트 명세서
 
-> 이 문서는 "현재 상태 요약"을 맨 앞에, 초기 설계부터 지금까지의 "설계 이력"을 뒤에 두는 구조입니다. 최신 구현 기준으로 궁금하면 1~5번만, 왜 이렇게 바뀌었는지 궁금하면 뒤의 설계 이력을 참고하세요.
+> 현재 구현 기준의 문서입니다. 1~5번이 현재 상태 요약이고, 그 뒤는 Phase별 진행 기록입니다.
+> 판단 근거와 시행착오는 [실험 로그](experiment_log.md)에 있습니다.
 
 ---
 
@@ -18,7 +19,7 @@
 사용자가 업로드하는 이력서/포트폴리오. `POST /documents`로 업로드, Chunking → Embedding(`ko-sroberta-multitask`) → Chroma.
 
 ### Collection 2: Interview KB
-운영자가 직접 작성하는 고정 콘텐츠. 현재 **18개 문서**(jwt, jwt_logout_invalidation, fastapi, spring_di, spring_boot, spring_layered_architecture, spring_bean_scope, postgresql_index, transaction, docker, http, oauth, caching, session_vs_token, session_auth, token_auth, async_sync, cors). 11개에서 늘어난 것은 다루는 주제 수를 늘린 게 아니라, "문서 분리 단위 = 완결된 근거 단위(retrieval unit)" 원칙에 따라 기존 문서(postgresql, spring, session_vs_token, jwt)를 재구성한 결과 (설계 이력 참고). `scripts/load_kb.py`로 일회성 인덱싱.
+운영자가 직접 작성하는 고정 콘텐츠. 현재 **18개 문서**(jwt, jwt_logout_invalidation, fastapi, spring_di, spring_boot, spring_layered_architecture, spring_bean_scope, postgresql_index, transaction, docker, http, oauth, caching, session_vs_token, session_auth, token_auth, async_sync, cors). 11개에서 늘어난 것은 다루는 주제 수를 늘린 게 아니라, "문서 분리 단위 = 완결된 근거 단위(retrieval unit)" 원칙에 따라 기존 문서(postgresql, spring, session_vs_token, jwt)를 재구성한 결과다(Phase 6 참고). `scripts/load_kb.py`로 일회성 인덱싱.
 
 ### Chain A: 질문 생성
 ```
@@ -37,7 +38,7 @@ Interview KB Retrieval Node → Judge Node → Decision(technical_score 구간)
 
 v2까지는 `technical_score < 5` 하나로만 갈렸고 점수가 높으면 아무 노드도 실행되지 않아, 두 갈래 중 한쪽이 비어 있었다. v3에서는 **구간마다 필요한 코칭의 종류가 다르다**는 기준으로 세 갈래로 확장해 모든 점수대에서 결과가 나오도록 했다. 경계값은 `FUNDAMENTALS_THRESHOLD = 4`, `ADVANCED_THRESHOLD = 7`.
 
-4~6점 경로에서는 Learning Tip이 먼저 실행되어 핵심 약점(topic)을 정하고, Followup이 그 topic을 이어받아 동일 주제의 꼬리질문을 생성한다 (병렬이 아닌 순차 설계, 이유는 설계 이력 참고).
+4~6점 경로에서는 Learning Tip이 먼저 실행되어 핵심 약점(topic)을 정하고, Followup이 그 topic을 이어받아 동일 주제의 꼬리질문을 생성한다 (병렬이 아닌 순차 설계. 두 노드가 같은 약점을 각자 다르게 해석하는 것을 막기 위함).
 
 ### 멀티턴 세션 그래프 (Phase 11)
 ```
@@ -100,14 +101,15 @@ class InterviewState(TypedDict, total=False):
 
 | 항목 | 결과 | 의미 |
 |---|---|---|
-| Judge Calibration | 94.1% (16/17) | Gemini Judge가 채점한 technical_score/completeness_score가, 사람이 미리 정한 기대 범위(bad/average/good 등 17개 케이스)와 얼마나 일치하는지의 비율. Judge의 채점 신뢰도 지표이며, 서비스 전체 정확도가 아님 |
+| Judge Calibration (v1, 17개) | 최고 94.1% (LCEL 시절) / 재측정 88.2% | Gemini Judge의 채점이 사람이 정한 기대 범위와 얼마나 일치하는지의 비율. 94.1%는 LCEL 구현 당시 값이고, LangGraph 이전 후 같은 세트로 재측정하면 88.2%다. 실패 케이스는 모두 경계선 변동이었다 |
+| Judge Calibration (v2, 44개) | 경로 정확도 88.4~93.0% (3회) | v1의 기대 범위가 분기 경계와 어긋나 있어 재설계한 세트. 점수가 맞았는지가 아니라 **올바른 코칭 경로로 갔는지**를 잰다. 3회 반복으로 확인한 **변동 폭은 약 5%p**이며, 이보다 작은 차이는 노이즈로 판단한다 |
 | RAGAS Faithfulness | 평균 0.4412 | Calibration Set 17개 답변 각각이 Interview KB의 근거 문서에 실제로 부합하는 정도의 평균. bad/average 카테고리에서 편차가 크게 나타남. 이 역시 서비스 전체 정확도가 아니라, Calibration Set이라는 특정 표본에 대한 근거성 점수 평균임 |
 | RAGAS Context Precision | 0.8000 (KB 11개 기준) | Retriever가 검색한 chunk 중 실제로 관련 있는 chunk가 상위에 오는 정도. KB가 2개 문서였을 때는 항상 1.0000이라 변별력이 없었고, 11개로 확장한 뒤에야 의미 있는 값이 나옴 |
 | Embedding 비교 (초기, 5문항) | Gemini Embedding이 헷갈리는 케이스 1건에서 더 안정적 | KB 11개 기준, 표본이 작아 일반화 보류로 남겨뒀던 초기 결과. 이후 20문항 재실행에서 결론이 뒤집힘(아래 행 참고) |
 | Retrieval 평가셋 (20문항, reference 기반) | Top-1 100% (20/20), Faithfulness 0.9708, Context Precision 1.0000 | KB를 "완결된 근거 단위" 기준으로 재구성(postgresql/spring 분리, session_vs_token 재구성)한 뒤의 최종 결과(ko-sroberta 기준). Judge Calibration Set의 Faithfulness(0.4412)와는 목적이 다른 별도 실험이며, reference(정답)를 기준으로 KB·Retrieval 자체의 품질을 측정 |
 | Embedding 비교 (최종, 20문항) | ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500 | Retrieval Unit 재설계 이후 20문항 평가셋으로 재실행. 5문항 표본(Gemini 우세)과 정반대 결론으로, 표본 확대가 결론을 뒤집은 사례다. ko-sroberta-multitask를 최종 임베딩으로 채택 |
 
-## 4. 핵심 설계 변경 이력 (요약, 상세는 아래 설계 이력 참고)
+## 4. 핵심 설계 변경 이력
 
 - **Structured Output 도입**: Gemini의 자유 텍스트 출력이 API 계약과 안 맞아 `with_structured_output()` + Pydantic 스키마로 전환
 - **RAGAS 적용 대상 재설정**: 초기 계획은 Chain A(질문 생성)에 Faithfulness를 적용하는 것이었으나, 면접 질문은 "주장"이 아니라 "질의"라 지표 전제와 안 맞음을 발견. Faithfulness 적용 대상을 Chain B(사용자 답변 + retrieved context)로 재설정
@@ -119,6 +121,8 @@ class InterviewState(TypedDict, total=False):
 - **Retrieval Unit 재설계 (11개 → 18개)**: "chunk당 주제 하나" 원칙을 모든 문서에 동일하게 적용하는 대신, 독립 개념 나열 문서(postgresql, spring)는 하위 주제별로 분리하고 비교형 문서(session_vs_token)는 비교 근거를 한 chunk에 유지하도록 재구성. Retrieval 전용 평가셋(20문항)으로 검증해 Top-1 100%·Faithfulness 0.9708까지 개선
 - **Embedding 비교 재검증 (20문항)**: 5문항 표본에서의 "Gemini Embedding이 더 안정적" 결론이 Retrieval Unit 재설계 후 20문항 재실행에서 뒤집힘. ko-sroberta-multitask가 Top-1 100%·Faithfulness 0.9708로 근소 우세해 최종 임베딩으로 채택
 - **Agent v2 → v3 (점수 구간별 다중 분기)**: 단일 조건(`< 5`)으로 갈리던 구조에서 3구간 분기로 확장. "분기를 늘린다"가 아니라 "구간마다 필요한 코칭의 종류가 다르다"를 기준으로, 0~3점은 개념 설명, 4~6점은 기존 약점 보완 코칭, 7~10점은 심화 질문을 반환하도록 설계. 빈 경로가 사라져 모든 점수대에서 결과가 나온다
+- **멀티턴 루프 도입 (그래프에 사이클 추가)**: 모든 경로가 한 방향으로 흐르고 끝나던 구조에서, `await_answer` 노드가 `interrupt()`로 멈췄다가 `Command(resume=...)`으로 재개하는 사이클을 추가. 조건부 분기까지는 LCEL로도 표현할 수 있어 "왜 LangGraph인가"에 답하기 어려웠는데, 되돌아가는 흐름과 실행 중단·재개는 LCEL로 만들 수 없어 채택 근거가 구조로 확보됨. 단발성 그래프는 그대로 두어 기존 API와 스크립트의 동작을 보존
+- **채점 결과에 근거 추가 (Phase 12)**: 점수만 주면 사용자가 납득할 수 없다는 지적에 따라 감점 사유·감점 폭과 역량 수준을 함께 반환하도록 `EvaluationResult` 스키마 확장. 착수 시엔 채점 편차도 줄어들 것으로 봤으나 측정 결과 효과가 확인되지 않아 가설을 기각. 대신 Calibration Set을 44개로 재설계하며 판정 기준을 코칭 경로로 바꾸고 변동 폭(약 5%p)을 확보
 
 ## 5. 한계와 다음 단계
 
@@ -126,211 +130,11 @@ class InterviewState(TypedDict, total=False):
 - **세션 상태가 서버 메모리에만 있음**: Phase 11의 멀티턴 루프는 `MemorySaver`로 세션을 보관한다. 컨테이너를 재시작하면 진행 중이던 세션이 사라지고, 인스턴스를 여러 개로 늘리면 세션이 특정 인스턴스에 묶인다. 실사용 규모에서는 `SqliteSaver`나 Postgres 기반 checkpointer로 교체해야 한다(단일 인스턴스 데모라 현재는 감수)
 - **세션 도중 질문 변경 불가**: 면접이 진행 중이면 다른 질문으로 갈아탈 수 없다(그래프가 그 세션의 맥락을 들고 있어 중간에 바꾸면 흐름이 깨진다). 화면에서는 안내 메시지로 막고, 새 질문으로 하려면 세션을 다시 시작해야 한다
 - **Retrieval 지표의 변별력 재확인 필요**: Context Precision 1.0000은 KB 2개 시절 만점과 같은 "측정 조건 미충족"일 가능성이 있음 (KB 확장 후 재측정 항목으로 관리)
+- **채점 편차가 남아 있음**: Phase 12에서 루브릭을 도입했으나 편차 감소 효과는 확인되지 않았다. 같은 조건으로 반복 측정해도 약 5%p가 흔들리며, 특히 분기 경계(4점, 7점) 부근 케이스가 반복적으로 넘나든다. 프롬프트로는 해결되지 않았으므로, 필요하다면 경계 자체를 재검토하거나 경계 부근에서 복수 채점 후 다수결하는 방식을 검토해야 한다
 - **응답 지연을 코드로는 줄일 수 없음**: Phase 8 ⑤~⑦에서 시간·프로세스 상태·패킷 세 각도로 측정한 결과, 지연의 대부분이 Gemini 응답 대기였다. 서버 연산도 네트워크도 병목이 아니므로 인스턴스 사양을 올려도 개선되지 않는다. 줄이려면 설계를 바꿔야 한다(스트리밍 응답, 병렬 호출, 캐싱). 현재는 순차 설계의 대가를 알고 유지하는 상태
 - **HTTPS 미적용**: WireShark 캡처로 요청·응답 JSON이 평문으로 노출되는 것을 직접 확인했다. 데모 단계라 감수하고 있으나, 실사용자를 받으려면 TLS가 선행되어야 한다 (고도화 로드맵 Phase 14에서 해소 예정)
 
-세부 계획은 아래 [Roadmap](#roadmap)의 Phase 7 이후 항목 참고.
-
----
-
-## 설계 이력 (v1.1부터 현재까지의 변경 과정)
-
-> 아래는 시간순으로 남긴 설계 기록입니다. 지금 구현 기준으로 궁금하면 위 "1~5번 현재 상태 요약"을 참고하세요.
-
-# AI Interview Coach with RAG - 프로젝트 명세서 v1.1
-
-> **v1.1 (2026-06-24)**: Day 1~2 구현 결과를 반영해 Chain A 아키텍처와 모델 설정 결정을 업데이트. 원본 v1 설계와 실제 구현 사이에 생긴 차이를 동기화.
-
-## 배경
-
-- 메인 프로젝트(`korean-chatbot`)와 완전히 분리된 별도 미니 프로젝트
-  - 메인: GPT-style Transformer를 PyTorch로 직접 구현 → 엔진을 만드는 능력
-  - 미니: Gemini API 기반 RAG 시스템 구축·배포·평가 → 실서비스형 AI 시스템을 만들고 서빙하는 능력
-- 멘토 피드백: "프론티어 모델(Gemini 등)과 비교해보라", "기능하는 에이전트를 만들고 서빙하는 능력도 키워야 한다"
-
-## 목표
-
-사용자가 이력서/자기소개서/포트폴리오/프로젝트 README를 업로드하면, 그 문서를 기반으로 개인화된 면접 질문을 생성하고, 사용자의 답변을 평가하는 RAG 기반 AI 면접 코치 서비스.
-
-## MVP 범위
-
-### 포함
-
-- 문서 업로드 + 인덱싱
-- Chain A: 사용자 문서 기반 질문 생성
-- Chain B: 답변 평가
-
-### 제외 (Future Work)
-
-- 꼬리질문 생성
-- 스트리밍 응답
-- Docker 배포
-- 멀티유저 / 인증
-- LangGraph / 멀티턴 면접
-
-## 아키텍처
-
-### Collection 1 - User Docs
-
-`resume.pdf`, `portfolio.pdf`, `README.md` 등 → Chunking → Embedding(`ko-sroberta-multitask`) → Chroma
-
-### Collection 2 - Interview KB
-
-AI/백엔드 취준생 기준으로 범위 한정: JWT, Spring, FastAPI, PostgreSQL, Docker 등 - md 문서 20~30개
-
-### Chain A - 질문 생성
-
-```
-User Docs Retriever → Prompt Template → Gemini (Structured Output) → InterviewQuestions(questions: list[str])
-```
-
-> v1 설계는 `Retriever → Gemini → 면접 질문`로 단순화돼 있었으나, 실제 구현 과정에서 두 가지가 추가됨:
-> 1. Prompt를 별도 단계로 분리해 단독 검증 가능하게 함 (`scripts/check_prompt.py`)
-> 2. Gemini의 자유 텍스트 출력이 마크다운/설명이 섞여 나와 API 계약과 안 맞는 문제 발견 → `with_structured_output()` + Pydantic 스키마(`InterviewQuestions`)로 전환
-
-### 모델 설정
-
-- 모델: `gemini-3.5-flash` (명시적 버전 고정)
-- `gemini-flash-latest` 같은 auto-update alias는 의도적으로 배제 - Google이 가리키는 모델을 바꾸면 코드 수정 없이도 평가 기준 모델이 바뀌어, Day 4 RAGAS 평가의 재현성이 깨질 수 있음
-- 모델명은 코드에 하드코딩하지 않고 `.env`의 `GEMINI_MODEL`로 분리 (fallback: `gemini-3.5-flash`)
-
-### Chain B - 답변 평가
-
-```
-면접 질문 + 사용자 답변 → Interview KB Retriever → Gemini Judge → 점수 + 피드백 (JSON)
-```
-
-## API 설계
-
-| Endpoint | 역할 |
-|---|---|
-| `POST /documents` | 문서 업로드 + 인덱싱 (Collection 1) |
-| `POST /generate-question` | Chain A 실행 |
-| `POST /evaluate-answer` | Chain B 실행 |
-
-## 평가 계획
-
-### Retrieval (RAGAS)
-
-| Chain | 지표 | 비고 |
-|---|---|---|
-| Chain A | Faithfulness, Context Precision | Context Recall은 reference set 부담으로 MVP에서 제외 |
-| Chain B | Context Precision | Recall/Faithfulness보다 Judge 타당성이 핵심이라 최소만 측정 |
-
-### Judge 신뢰성 - Calibration Set
-
-- 면접 질문 5개 × 답변 수준(bad/average/good) 3단계 = 15개
-- 각 항목에 `expected_range` 명시, 실제 Judge 점수와 비교
-
-```json
-{
-  "question": "JWT란 무엇인가?",
-  "answer": "모르겠습니다.",
-  "answer_level": "bad",
-  "expected_range": [0, 3]
-}
-```
-
-## 재사용 자산 (메인 프로젝트 `korean-chatbot`에서)
-
-- `rag/shared/`의 chunking, embedding 모듈 - 그대로 재사용 가능
-- Chroma vectorstore 설정(cosine distance 명시) - 2-컬렉션 구조에 맞게 재작성 필요
-- LCEL 체인 패턴(`retriever | format_docs`, `RunnablePassthrough`) - 그대로 적용 가능
-
-## 다음 단계 (빌드 순서 - Retriever 먼저, LLM은 나중)
-
-RAG 프로젝트는 LLM보다 문서 로딩/청킹/임베딩/검색 단계에서 더 자주 깨진다(FAISS segfault, Chroma distance function 사례 참고). 가장 큰 리스크는 "Source B(KB) 부족"이 아니라 "Retriever 자체가 안 맞음"이므로, KB는 최소 단위로 늦게 만든다.
-
-**우선순위**: 1) User Docs Retrieval → 2) Question Generation(Chain A) → 3) Interview KB(최소 구성) → 4) Answer Evaluation(Chain B)
-
-- **Day 1 (완료)**: 프로젝트 디렉토리 생성 + FastAPI 기동 확인 + `POST /documents`로 인덱싱 + Retriever 의미 기반 검색 검증(dedup 포함)
-- **Day 2 (완료)**: Gemini 연동 4단계 검증(단독 → Prompt → Retriever+Prompt → 전체 체인) → Structured Output 적용 → `POST /generate-question` 엔드포인트
-- **Day 3 (다음)**:
-  1. `rag/vectorstore.py`에 `get_interview_kb_vectorstore()` / `get_interview_kb_retriever()` 추가 (Collection 1과 동일 패턴, cosine distance 포함)
-  2. `kb/` 폴더에 `jwt.md`, `fastapi.md` 2개만 작성 (Day 1 발견 - 단일 주제로 짧게)
-  3. KB는 API 업로드가 아니라 일회성 로드 스크립트로 인덱싱 (사용자가 올리는 게 아니라 직접 작성하는 고정 콘텐츠이므로)
-  4. `retriever.invoke("JWT란 무엇인가?")`로 단독 검증
-  5. `EvaluationResult` 스키마 설계 (technical_score, completeness_score 등 - 어떤 점수를 Calibration 기준으로 할지 미리 확정)
-  6. Chain B(Question + Answer + KB Retriever → Gemini Judge) 구현
-- **이후**: RAGAS + Calibration Set 적용
-
-**Day 2에서 발견한 추가 이슈**: Gemini 3+ 모델은 `.content`가 plain string이 아니라 thought signature가 포함된 블록 리스트로 나옴 (`rag/llm_utils.py`의 `extract_text()`로 대응했으나, 최종적으로는 structured output 방식으로 해결).
-
-## 추가 실험 계획 (구현 후, Future Work)
-
-### 임베딩 모델 비교
-
-MVP는 `ko-sroberta-multitask`로 시작하되, 구현 완료 후 비교 실험으로 확장:
-
-| | Embedding A | Embedding B |
-|---|---|---|
-| 모델 | `ko-sroberta-multitask` | Gemini Embedding |
-| 비교 지표 | Faithfulness, Context Precision | Faithfulness, Context Precision |
-
-Gemini API 기반 서비스 구축 경험을 보여주는 게 이번 프로젝트의 목적이므로, README에 두 임베딩의 RAGAS 점수를 나란히 비교해두면 "왜 이 임베딩을 선택했는가"에 대한 근거가 생긴다.
-
-## 포트폴리오 talking points
-
-> GPT-style Transformer를 직접 구현하는 프로젝트를 수행한 후, 실제 서비스 구축 역량을 보여주기 위해 RAG 기반 AI 면접 코치 시스템을 개발하였다. 사용자 문서 기반 질문 생성과 기술 지식 기반 답변 평가를 분리하여 설계하였고, Retrieval 성능은 RAGAS로 평가하고 답변 평가는 LLM-as-a-Judge 방식을 사용하였다.
-
-> (Chain B에 RAGAS를 깊게 적용하지 않은 이유) Chain B의 핵심 목표는 Retrieval 성능보다 사용자 답변 평가의 타당성이었기 때문에, RAGAS보다는 Judge Calibration에 집중했습니다.
-
-> (왜 RAG를 썼나요?) 사용자마다 문서가 다르고 계속 바뀌기 때문에, 매번 파인튜닝하는 건 비용·시간 면에서 현실적이지 않다고 판단했습니다. 그래서 모델 가중치는 고정하고, 사용자의 이력서·README를 Vector DB에 저장한 뒤 검색해서 Gemini에 컨텍스트로 제공하는 구조를 설계했습니다. 이 구조는 사용자가 늘어나도 그대로 확장되고, 어떤 질문이 어떤 문서에서 나왔는지도 추적할 수 있다는 장점이 있습니다.
-
-> (GPT-from-scratch 프로젝트와의 시너지) 프로젝트 1(`korean-chatbot`)에서는 LLM 내부 구조(Transformer, 토크나이저, 학습)를 직접 구현했고, 프로젝트 2(`ai-interview-coach`)에서는 기성 LLM을 활용해 실서비스형 AI 시스템(RAG, 서빙, 평가)을 구축했습니다. 두 프로젝트를 함께 설명하면 "모델 내부를 이해하는 능력"과 "실제 서비스를 만드는 능력"을 모두 보여줄 수 있습니다.
-
----
-
-## v1.2 업데이트 (2026-07-14) - LangGraph 마이그레이션 + Agent 확장
-
-### 배경
-8주차 부트캠프 과제(LangChain RAG → LangGraph StateGraph 마이그레이션 → Agent 확장 → FastAPI 배포)를 진행하며, 강사님 상담 결과 `ai-interview-coach`가 메인 프로젝트로 확정됨.
-
-### 아키텍처 변경
-Chain A/B를 LCEL에서 LangGraph StateGraph로 마이그레이션. 기존 LCEL 코드(`rag/chains.py`)는 삭제하지 않고 보존 - Migration 과정 자체를 증명하기 위함.
-
-```
-InterviewState (TypedDict, total=False)
-├── question, answer              # 입력
-├── context, retrieved_sources    # Retrieval Node가 채움
-├── generated_questions           # Chain A: Generation Node가 채움
-├── evaluation_result             # Chain B: Judge Node가 채움
-└── next_action, followup_question  # Agent 확장용 (조건부 분기)
-```
-
-**Chain A 그래프**: `START → Retrieval(User Docs) → Generation → END`
-**Chain B + Agent 그래프**: `START → Retrieval(Interview KB) → Judge → [조건부: technical_score < 5 → Followup] → END`
-
-Retrieval과 Judge/Generation을 별도 Node로 분리한 이유:
-1. 문제 발생 시 Retrieval/Judge 중 어느 단계인지 그래프 단위로 바로 특정 가능
-2. Agent 확장 시 조건부 분기를 노드 단위로 추가할 수 있도록 미리 구조를 맞춤
-
-Chain A/B를 하나의 그래프로 합치는 것은 보류 - 두 체인이 서로 다른 시점(질문 생성 시점, 답변 제출 시점)에 독립적으로 호출되어 지금 시점에 합칠 실익이 없다고 판단. 필요성이 명확해지면(예: 세션 전체를 하나의 그래프로 표현) 재검토.
-
-### Agent 확장
-`decide_followup()` 조건부 엣지로 `evaluation_result.technical_score < 5`일 때 `followup_node`로 분기, 아니면 즉시 종료. Judge Node의 `improvements`(약점)를 프롬프트에 전달해 그 약점을 겨냥한 꼬리질문 1개를 생성.
-
-**검증**: bad 답변(technical_score=0) → 꼬리질문 생성 확인, good 답변(technical_score=10) → `followup_question: null`로 정상 스킵 확인.
-
-**추가 발견**: 꼬리질문 생성 시에도 Chain A/B에서 봤던 Faithfulness 패턴 재현 - 프롬프트에서 "Weak Points를 겨냥하라"고 명시했음에도, KB context에 있는 다른 내용(예: 저장 위치 관련)까지 끌어다 쓰는 경우 관찰. 향후 RAGAS를 꼬리질문 생성에도 적용할 근거로 기록.
-
-### Calibration Set을 활용한 마이그레이션 검증 (Regression Test)
-Day 4에서 완성한 Calibration Set(17개, 최종 94.1%)을 LCEL에서 Graph로 옮긴 뒤 그대로 재실행:
-
-| 버전 | 결과 | 비고 |
-|---|---|---|
-| LCEL (최종) | 16/17 (94.1%) | Case 17만 경계선 변동 |
-| LangGraph | 15/17 (88.2%) | Case 16, 17만 실패 - 둘 다 LCEL 반복 실행에서도 경계선(±1점) 변동을 보였던 케이스 |
-
-완전히 동일한 수치는 아니지만, 실패 케이스가 기존에 알려진 경계선 변동 케이스에 한정되어 마이그레이션이 새로운 오분류 패턴을 만들지 않았다고 판단.
-
-### FastAPI 엔드포인트 갱신
-`/generate-question`, `/evaluate-answer` 모두 내부 구현을 LCEL 체인에서 LangGraph 그래프 호출로 교체. 응답 스키마는 하위 호환 유지, `/evaluate-answer`에는 `followup_question` 필드 추가.
-
-### 다음 단계
-1. RAGAS 설치 및 적용 (Faithfulness, Context Precision) - API 호출량이 많아 그래프/Agent/API 안정화 후 진행
-2. Embedding 비교 실험 (`ko-sroberta-multitask` vs Gemini Embedding)
-3. `uv` 패키지 매니저로 전환 (메인 프로젝트와 도구 통일, LangGraph 마이그레이션 이후로 미뤄둠)
+Phase 1~12는 완료됐다. 앞으로의 계획은 아래 [고도화 로드맵](#고도화-로드맵-2026-07-29-멘토링-반영)의 Phase 13~16 참고.
 
 ---
 
@@ -400,7 +204,7 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 
 **② GitHub Actions (CI) (완료)**
 - [x] 푸시/PR 시 자동 실행되는 워크플로 구성 (`.github/workflows/ci.yml`), 배포는 하지 않음
-- [x] `test` job: pytest 24개. 분기 로직·그래프 구조·chunking 등 **API 키가 필요 없는 계층**만 검증하도록 설계해 비밀값을 CI에 노출하지 않음
+- [x] `test` job: 분기 로직·그래프 구조·chunking 등 **API 키가 필요 없는 계층**만 검증하도록 설계해 비밀값을 CI에 노출하지 않음 (현재 35개)
 - [x] `docker-build` job: Dockerfile이 깨끗한 환경(linux/amd64 러너)에서 빌드되는지 확인
 - [x] CUDA 패키지 재유입 검사: 이미지에 nvidia/triton이 포함되면 빌드 실패 처리. ①에서 최적화가 **에러 없이 조용히 풀렸던 전례**가 있어 자동 검사로 고정
 - [x] 스모크 테스트: 컨테이너를 실제로 띄워 헬스체크 응답까지 확인 (KB 인덱싱은 임베딩만 쓰므로 더미 키로 가능)
@@ -416,24 +220,22 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - 운영 참고: `t3.small`은 프리티어가 아니므로 미사용 시 인스턴스 중지 필요. 중지 후 재시작하면 퍼블릭 IP가 변경됨(Elastic IP 미적용)
 
 **④ GitHub Actions (CD) (완료)**
-- [x] `deploy` job 추가. main 브랜치 푸시 시 EC2에 SSH 접속해 `git pull` 후 재기동
-- [x] `needs: [test, docker-build]`로 앞 두 job에 의존시켜, **테스트가 깨지면 배포되지 않도록** 구성. PR에서는 실행되지 않음
+- [x] `deploy` job 추가. `needs: [test, docker-build]`로 앞 두 job에 의존시켜 **테스트가 깨지면 배포되지 않도록** 구성. PR에서는 실행되지 않음
 - [x] 배포 후 외부에서 헬스체크로 실제 응답 확인 (배포 명령 성공과 서비스 정상은 별개이므로 단계를 분리)
-- [x] `docker image prune -f`로 이전 빌드 이미지 정리 (EBS 20GB에 누적되면 다시 디스크가 참)
-- [x] **Dockerfile 레이어 순서 개선**: 임베딩 모델 다운로드(449MB)가 코드 COPY 뒤에 있어, 코드 한 줄만 바뀌어도 캐시가 무효화되고 매 배포마다 모델을 다시 받는 구조였다. `rag.embeddings` import 대신 모델명을 직접 지정해 코드 의존을 끊고 앞으로 이동. 코드만 변경한 재빌드가 1.6초로 단축됨
-- [x] **보안 그룹 재조정**: 첫 배포가 `dial tcp <IP>:22: i/o timeout`으로 실패. ③에서 22번을 "내 IP만"으로 제한했는데 GitHub Actions 러너는 다른 IP에서 접속하기 때문이다. CD 도입으로 "사람만 접속"이라는 전제가 깨져 22번을 개방함 (키 인증만 허용되므로 `.pem` 없이는 접속 불가)
+- [x] **Dockerfile 레이어 순서 개선**: 임베딩 모델 다운로드(449MB)가 코드 COPY 뒤에 있어 코드 한 줄만 바뀌어도 매 배포마다 모델을 다시 받는 구조였다. 모델명을 직접 지정해 코드 의존을 끊고 앞으로 이동, 코드만 변경한 재빌드가 1.6초로 단축
+- [x] **보안 그룹 재조정**: 첫 배포가 `dial tcp <IP>:22: i/o timeout`으로 실패. ③에서 22번을 "내 IP만"으로 제한했는데 CD는 러너가 접속하므로 "사람만 접속"이라는 전제가 깨졌다. 키 인증만 허용되므로 포트를 열어도 `.pem` 없이는 접속 불가
+- [x] **Docker Hub 경유 방식으로 전환 (2026-07-29)**: 초기에는 EC2에서 `git pull` 후 직접 빌드했으나, CI가 빌드해 Docker Hub에 올리고 EC2는 받아서 실행하는 구조로 바꿨다. EC2에 소스 코드가 필요 없어지고 `t3.small`의 CPU·디스크 부담이 사라진다. `latest`와 커밋 SHA 두 태그를 달아 특정 커밋으로 되돌릴 수 있게 함
+  - 계기: 맥(arm64)에서 `--platform linux/amd64` 빌드가 QEMU 에뮬레이션 때문에 임베딩 모델 로드 단계에서 멈췄다(두 번 재현). 러너는 네이티브 amd64라 이 문제가 없다
+  - 저장소가 private이라 EC2가 pull하려면 인증이 필요하다. 서버에 미리 로그인해두는 대신 배포마다 로그인하도록 해, 인스턴스를 새로 만들어도 사전 준비 없이 동작한다
 - 여기까지로 "빌드·배포 CI/CD 파이프라인" 과제 요건 충족
 
 **⑤ API 성능 측정 (완료)**
 - [x] `scripts/measure_api_latency.py`로 분기별 응답 시간 측정 (로컬 + EC2 양쪽)
 - [x] **가설 확인**: Gemini 호출이 3회인 4~6점 분기가 2회인 분기보다 일관되게 느림 (약 4~6초 추가)
-- [x] **병목이 서버 연산도 네트워크도 아님을 확인**: 기준선(`GET /`)이 로컬 2.4ms / EC2 42.5ms로 전체의 0.2% 미만. t3.small이 맥북보다 CPU가 약한데도 응답 시간은 느리지 않았다. 인스턴스 사양을 올려도 응답 시간은 줄지 않는다는 뜻
+- [x] **병목이 서버 연산도 네트워크도 아님을 확인**: 기준선(측정 당시 헬스체크였던 `GET /`)이 로컬 2.4ms / EC2 42.5ms로 전체의 0.2% 미만. t3.small이 맥북보다 CPU가 약한데도 응답 시간은 느리지 않았다. 인스턴스 사양을 올려도 응답 시간은 줄지 않는다는 뜻
 - [x] **순차 설계의 비용을 수치화**: Learning Tip → Followup 순차 구조가 출력 일관성을 얻는 대신 약 4~6초를 지불하고 있음을 확인. 기존에는 설계 의도만 있었고 대가는 미측정 상태였음
 - [x] 메모리 사용량은 ③ 인스턴스 선정 과정에서 선행 측정 (유휴 757MB, 피크 1.154GB)
-  - 핵심 관찰 대상: `/evaluate-answer`는 분기에 따라 Gemini 호출 횟수가 달라진다. 0~3점(Judge → Fundamentals)과 7~10점(Judge → Advanced)은 2회지만, 4~6점은 Judge → Learning Tip → Followup 3회 순차 호출이라 같은 엔드포인트인데도 지연이 크게 갈린다.
-  - 이 측정으로 Agent 순차 설계의 트레이드오프(일관성 확보 vs 지연 증가)를 정성적 설계 근거가 아니라 정량 데이터로 뒷받침할 수 있다.
-  - 함께 확인할 것: `/documents` 인덱싱 소요 시간, 동시 요청 시 동작, 메모리 사용량(③의 OOM 리스크 검증)
-  - 여유가 되면 로컬과 EC2를 각각 측정해 하드웨어 및 Gemini API까지의 네트워크 거리 차이를 비교
+- 같은 엔드포인트인데 지연이 갈리는 이유: 0~3점(Judge → Fundamentals)과 7~10점(Judge → Advanced)은 Gemini 호출이 2회지만, 4~6점은 Judge → Learning Tip → Followup 3회다
 
 **⑥ 유닉스 환경 프로세스·스레드·메모리 분석 (완료)**
 - [x] `/proc`, `top -H`, `docker stats`로 프로세스/스레드/메모리 상태 관찰 (EC2, slim 이미지라 `ps` 없이 진행)
@@ -491,25 +293,33 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 페르소나(Phase 13)가 정해져야 어떤 기능이 필요한지 판단할 수 있지만, 채점 개선(Phase 12)은
 이미 계획이 서 있고 **효과를 수치로 증명할 수 있는 유일한 항목**이라 앞에 두었다.
 
-| Phase | 내용 | 예상 기간 | 선행 조건 |
-|---|---|---|---|
-| 12 | 채점 고도화 (루브릭·감점 근거·레벨 판정) | 2~3일 | 없음 |
-| 13 | 페르소나 정의와 제품 방향 | 반나절 | 없음 (문서 작업) |
-| 14 | HTTPS와 도메인 연결 | 1일 | 도메인 확보 |
-| 15 | 지식베이스 출처 재설계 | 3~5일 | 저작권 검토 |
-| 16 | 채용공고 매칭 | 1~2주 | Phase 13 |
+| Phase | 내용 | 기간 | 선행 조건 | 상태 |
+|---|---|---|---|---|
+| 12 | 채점 고도화 (루브릭·감점 근거·레벨 판정) | 2~3일 | 없음 | **완료** |
+| 13 | 페르소나 정의와 제품 방향 | 반나절 | 없음 (문서 작업) | 예정 |
+| 14 | HTTPS와 도메인 연결 | 1일 | 도메인 확보 | 예정 |
+| 15 | 지식베이스 출처 재설계 | 3~5일 | 저작권 검토 | 예정 |
+| 16 | 채용공고 매칭 | 1~2주 | Phase 13 | 예정 |
 
-### Phase 12: 채점 고도화
-사용자가 "왜 이 점수인지" 납득하지 못한다는 지적에서 출발했지만, 실질적으로는 **채점 편차를 줄이는 작업**이다.
+### Phase 12: 채점 고도화 (완료, 2026-07-31)
+사용자가 "왜 이 점수인지" 납득하지 못한다는 지적에서 출발했다. 착수 시점에는 **채점 편차도 함께 줄어들 것**으로 봤으나, 그 기대는 측정으로 기각됐다.
 
-- [ ] **루브릭(점수대별 판정 기준)을 프롬프트에 명시**
-  - 현재 프롬프트는 `technical_score (0~10): 답변이 기술적으로 정확한가`가 전부라 **9점과 10점을 가르는 기준이 없다.** 그래서 같은 답변에 ±1점 변동이 생기고, Calibration 실패 케이스도 대부분 경계선 변동이었다
-  - 실측 사례: 같은 주제 답변에서 "이유를 한 줄 덧붙였는지"만으로 4점과 7점이 갈렸다. 분기 경계(4점, 7점)를 넘나들어 실행 경로 자체가 바뀐다
-- [ ] **감점 근거 제시**: 만점에서 깎아나가는 방식으로 감점 사유와 감점 폭을 함께 반환
-- [ ] **레벨 판정**: 점수와 별개로 "주니어 수준 / 시니어 수준" 같은 표현을 추가. 숫자보다 직관적으로 와닿는다
-- [ ] **모범답안 제공** (선택): KB 근거 기반. **`[Reference]` 밖에서 생성되면 환각**이므로 생성 범위를 제약하고 RAGAS로 재측정할 것
-- 구현: `judge_node`가 이미 structured output을 쓰므로 `EvaluationResult` **스키마 확장**으로 처리한다. 별도 노드를 만들면 Gemini 호출이 늘지만, 스키마만 넓히면 호출 횟수는 그대로고 출력 토큰만 증가한다
-- 검증: Calibration Set 17개로 **도입 전후 정확도를 비교**한다. 목적이 납득만이 아니라 편차 감소이므로 수치로 확인할 수 있어야 한다
+- [x] **루브릭(점수대별 판정 기준)을 프롬프트에 명시**
+  - 기존 프롬프트는 `technical_score (0~10): 답변이 기술적으로 정확한가`가 전부라 9점과 10점을 가르는 기준이 없었다
+  - 실측 사례: 같은 주제 답변에서 "이유를 한 줄 덧붙였는지"만으로 4점과 7점이 갈렸다. 분기 경계를 넘나들어 실행 경로 자체가 바뀐다
+- [x] **감점 근거 제시**: `Deduction`(reason, points) 목록을 반환. `points` 합이 `10 - technical_score`와 일치하는지 검증해 **17개 전부 일치(100%)** 확인
+- [x] **레벨 판정**: `junior` / `middle` / `senior`. 지원자의 연차가 아니라 그 답변이 보여준 수준이다
+- [x] **스키마 확장으로 구현**: `judge_node`가 이미 structured output을 쓰므로 필드만 넓혔다. Gemini 호출 횟수는 그대로다. `deductions`를 `technical_score`보다 앞에 배치해 "깎을 것을 먼저 세고 합을 빼는" 순서를 유도했다
+- [x] **프론트엔드 반영**: 감점 내역을 강점·개선점보다 앞에 두어 점수 직후에 근거가 이어지게 배치
+- [ ] **모범답안 제공**: 이번에 넣지 않았다. `[Reference]` 밖에서 생성되면 환각이므로 생성 범위 제약과 RAGAS 재측정을 전제로 별도 진행할 것
+
+**결과**
+- 루브릭이 정확도를 올린다는 가설은 **기각**됐다. 동일 세트로 유무를 비교했으나 차이가 변동 폭(약 5%p) 안에 들어왔고, 레벨별 평균 점수도 거의 같았다
+- 사용자가 점수 근거를 알게 된다는 목표는 달성했다. 원래 지적받은 문제가 그것이었다
+- **부수 성과로 측정 도구가 개선됐다.** Calibration Set을 17개에서 44개(주제 5개 → 13개)로 확대하고, 판정 기준을 점수 범위에서 **코칭 경로 일치**로 바꿨다. 기존 세트는 기대 범위가 분기 경계와 어긋나 있어, 점수는 맞았다고 나오면서 엉뚱한 코칭이 나가는 경우를 잡지 못했다
+- 3회 반복으로 **변동 폭 약 5%p**를 확보했다. 이제 이보다 작은 차이는 노이즈로 판정한다
+
+측정 과정과 시행착오는 [실험 로그](experiment_log.md#2026-07-31---채점-루브릭-도입과-측정-도구-재설계-phase-12) 참고.
 
 ### Phase 13: 페르소나 정의와 제품 방향
 멘토 조언: "이 프로젝트의 사용자를 유추해 페르소나를 정하라. 서비스를 판매한다고 생각하고 만들어라."

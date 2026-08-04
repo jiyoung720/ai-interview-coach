@@ -39,9 +39,13 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 ```
 ```json
 {
+  "deductions": [
+    { "reason": "JWT에 대해 전혀 알지 못한다고 답변하여 기술적 개념을 설명하지 못했습니다.", "points": 10 }
+  ],
   "technical_score": 0,
   "completeness_score": 0,
-  "improvements": ["JWT의 개념과 구성 요소에 대한 학습이 필요합니다.", "..."],
+  "level": "junior",
+  "improvements": ["JWT의 개념과 구성 요소(Header, Payload, Signature)에 대한 학습이 필요합니다.", "..."],
   "retrieved_sources": ["jwt.md", "oauth.md"],
   "next_action": "fundamentals_explained",
   "concept_explanation": {
@@ -57,9 +61,9 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 
 0점이라 개념 자체를 모르는 상태로 판단해, 학습 방향 제시(Learning Tip) 대신 **개념 설명**을 반환했습니다. 같은 질문에 부분적으로만 맞는 답변(5점)을 보내면 `learning_tip` + `followup_question`이, 정확한 답변(10점)을 보내면 `advanced_question`(심화 질문)이 채워집니다. `next_action`으로 어느 경로가 실행됐는지 알 수 있습니다.
 
-4~6점 경로에서는 `learning_tip.topic`과 `followup_question`이 같은 주제를 겨냥합니다. Learning Tip이 먼저 핵심 약점을 정하고 Followup이 그 결과를 이어받는 순차 구조이기 때문입니다.
+`deductions`는 10점 만점에서 무엇 때문에 얼마나 깎였는지를 담습니다. points의 합은 항상 `10 - technical_score`와 일치하며, 17개 케이스로 확인한 결과 100% 지켜졌습니다. 점수만 주면 "왜 이 점수인지" 알 수 없다는 문제 때문에 넣었습니다.
 
-Faithfulness 문제(컨텍스트에 없는 내용을 생성하는 것)를 실측으로 발견한 뒤, RAGAS로 정량화했습니다. 자세한 수치는 [Key Findings](#key-findings) 참고.
+4~6점 경로에서는 `learning_tip.topic`과 `followup_question`이 같은 주제를 겨냥합니다. Learning Tip이 먼저 핵심 약점을 정하고 Followup이 그 결과를 이어받기 때문입니다. 두 노드를 병렬로 두면 같은 약점을 각자 다르게 해석할 위험이 있어 순차로 설계했습니다.
 
 ## Architecture
 
@@ -84,36 +88,39 @@ flowchart TB
     end
 ```
 
-점선이 **사이클**입니다. 코칭을 받은 사용자가 다시 답하면 검색부터 되돌아가 새 질문으로 다시 채점합니다.
+**분기 기준은 "갈래를 늘리자"가 아니라 "점수대마다 필요한 코칭이 다르다"였습니다.** 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무것도 실행되지 않아 한쪽 경로가 비어 있었습니다.
 
-**technical_score 구간에 따라 세 갈래 중 하나가 실행됩니다.** 고정된 파이프라인이 아니라, State(evaluation_result)에 따라 다음 행동이 갈리는 것이 이 프로젝트의 Agent 형태입니다.
+**점선 사이클이 LangGraph를 쓰는 근거입니다.** 조건부 분기와 순차 실행까지는 LCEL의 `RunnableBranch`로도 됩니다. 하지만 코칭받은 사용자가 다시 답하고 그 답을 또 채점하려면 실행이 되돌아가야 하고, 중간에 사람의 입력을 기다리며 멈췄다 재개해야 합니다(`interrupt` / `Command(resume=...)`). 이건 LCEL로 만들 수 없습니다. 0~3점만 루프에서 빠지는데, 개념을 모르는 사람에게 같은 주제를 다시 묻는 건 코칭이 아니라 압박이라고 봤기 때문에 설명을 주고 세션을 마칩니다.
 
-분기를 설계할 때 기준으로 삼은 것은 "갈래 수를 늘리자"가 아니라 **"점수대마다 필요한 코칭의 종류가 다르다"**였습니다. 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무 노드도 실행되지 않아 한쪽 경로가 비어 있었는데, 이 확장으로 모든 점수대에서 결과가 나옵니다.
-
-4~6점 경로에서 Learning Tip과 Followup을 병렬이 아닌 순차로 설계한 이유는 이렇습니다. 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험이 있어, Learning Tip이 먼저 핵심 주제(topic)를 정하고 Followup이 그 결과를 이어받도록 했습니다.
-
-**사이클이 LangGraph를 쓰는 근거입니다.** 조건부 분기와 순차 실행까지는 LCEL의 `RunnableBranch`로도 표현할 수 있어서, 3분기 구조만으로는 "그럴 거면 LCEL로도 되지 않나"라는 반문에 답할 수 없었습니다. 코칭을 받은 사용자가 다시 답하고 그 답을 또 채점하려면 실행이 되돌아가야 하고, 그 중간에 사람의 입력을 기다리며 멈췄다 재개해야 합니다(`interrupt` / `Command(resume=...)`). 이건 LCEL로는 만들 수 없는 구조입니다.
-
-0~3점 경로만 루프에서 빠지는데, 개념 자체를 모르는 사람에게 같은 주제를 다시 묻는 건 코칭이 아니라 압박이라고 봤기 때문입니다. 설명을 주고 세션을 마칩니다.
-
-두 체인 모두 LangChain LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 분리해 (1) 문제 발생 시 어느 단계인지 바로 특정할 수 있고, (2) 평가 점수에 따른 조건부 분기(Agent)를 Node 단위로 추가할 수 있도록 설계했습니다. 기존 LCEL 코드(`rag/chains.py`)는 삭제하지 않고 그대로 보존해, Migration 과정 자체를 코드로 증명할 수 있게 했습니다.
+두 체인 모두 LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 나눈 덕분에 문제 발생 시 어느 단계인지 바로 특정할 수 있고, 평가 점수에 따른 조건부 분기(Agent)도 Node 단위로 추가할 수 있었습니다. 기존 LCEL 코드(`rag/chains.py`)는 지우지 않고 보존해 마이그레이션 과정 자체를 코드로 남겼습니다.
 
 ## Key Findings
 
-코드를 짜는 과정에서 발견한 것들입니다. 단순히 "작동한다"가 아니라 "왜 그렇게 작동하는지"를 확인한 실험들입니다. 전체 내용은 [실험 로그](docs/experiment_log.md)에 있습니다.
+"작동한다"가 아니라 "왜 그렇게 작동하는지"를 확인한 것들입니다. 전체 기록은 [실험 로그](docs/experiment_log.md)에 있습니다.
 
-- **Retrieval 관련 실험들이 모두 같은 결론으로 수렴함**: Semantic Retrieval 검증(Day 1), Context Precision 단독 실험, 첫 Embedding 비교, KB 확장 후 재실험까지 서로 다른 목적의 실험에서도 동일한 패턴이 반복적으로 관찰됨. KB가 2개 문서일 때는 Context Precision과 Embedding 비교가 항상 만점이라 변별력을 갖지 못했고, 11개로 확장한 뒤에야 Retrieval 관련 지표들이 실제 차이를 드러내기 시작함.
-- **혼합 주제 chunk는 유사도 점수를 왜곡시킬 수 있음**: 여러 주제가 섞인 긴 chunk가 단일 주제의 짧은 chunk보다 더 높은 유사도를 받는 경우를 실측으로 확인. KB는 파일당 주제 하나로 작성하도록 반영.
-- **문서 분리의 단위는 파일 크기가 아니라 "완결된 근거 단위(retrieval unit)"**: Retrieval 전용 평가셋(20문항)으로 재검증한 결과, 독립된 개념이 나열된 문서(`postgresql.md`, `spring.md`)는 하위 주제별로 분리할수록 검색 품질이 개선됐지만, 비교형 문서(`session_vs_token.md`)는 반대로 정의·차이·확장성 비교를 한 chunk에 유지해야 품질이 좋아짐을 확인. 이 원칙을 반영해 KB를 재구성한 뒤 Top-1 정확도 100%(20/20), Faithfulness 0.9708, Context Precision 1.0000까지 개선.
-- **Retriever 성공이 Faithfulness를 보장하지는 않음**: 검색이 정확해도 생성 모델이 컨텍스트 밖 내용을 추가할 수 있음을 직접 확인. RAGAS로 정량화한 결과, Calibration Set 17개 케이스의 평균 Faithfulness는 0.4412. bad/average 카테고리에서 편차가 크게 나타나 Judge의 technical_score와는 다른 것을 측정하는 지표임을 확인.
-- **임베딩 비교 결론이 표본 확대 후 뒤집힘**: KB가 2개 문서였을 때는 두 임베딩이 항상 동일했고, 11개로 확장한 뒤 5문항 표본에서는 Gemini Embedding이 더 안정적으로 관찰됐음(다만 표본이 작아 일반화는 보류). Retrieval Unit 재설계로 KB를 18개로 재구성한 뒤 20문항 평가셋으로 재실행하자 정반대로 `ko-sroberta-multitask`가 Top-1 100%(20/20)·Faithfulness 0.9708로 Gemini Embedding(95.0%·0.9500)보다 근소하게 우세했음. 작은 표본에서의 결론을 그대로 일반화하면 안 된다는 것을 직접 확인한 사례.
-- **Judge Calibration으로 프롬프트/테스트 데이터 결함을 구분해냄**: Judge 채점을 그대로 신뢰하지 않고 Calibration Set(17개)으로 검증. 실패 원인을 분석한 결과 Judge가 아니라 Calibration Set 자체의 설계 결함(동일 답변에 서로 다른 기대치 부여)이 원인이었음을 발견, 재설계를 통해 정확도를 52.9%에서 94.1%로 향상시킴.
-- **LangGraph 마이그레이션 검증에 Calibration Set을 회귀 테스트로 재사용**: LCEL에서 LangGraph로 Migration한 이후에도 기존 Judge 동작이 유지되는지 확인하기 위해, 그래프로 옮긴 뒤 동일한 Calibration Set을 재실행(88.2%)함. 실패 케이스가 LCEL 버전에서도 존재했던 경계선 변동과 동일함을 확인했고, 마이그레이션이 새로운 오분류를 만들지 않았음을 검증.
-- **라우팅 로직을 순수 함수로 분리해두면 LLM 호출 없이 전수 검증이 가능함**: Agent를 점수 구간별 3분기로 확장할 때, 분기 함수(`decide_next_step`)가 State만 받는 순수 함수라 Gemini 호출 없이 0~10점 11개 값을 전부 검증할 수 있었음. 이전 경계값 검증(Agent v1)에서는 특정 점수가 나오는 답변을 LLM으로 만들어내야 해서 0/5/10 세 지점만 확인했던 것과 대비됨. 노드와 라우팅을 분리한 구조의 실질적 이점.
-- **순차 설계의 비용을 배포 후 측정으로 수치화함**: Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 겨냥하게 하려는 설계였는데, 그 대가가 얼마인지는 몰랐음. 배포 후 분기별 응답 시간을 재보니 Gemini 호출이 3회인 구간(4~6점)이 2회인 구간보다 약 4~6초 느렸음. 동시에 기준선(`GET /`)이 전체의 0.2% 미만이고 EC2(t3.small)가 로컬 맥북보다 느리지 않아, **병목이 서버 연산이나 네트워크가 아니라 LLM 응답 대기**임을 확인. 인스턴스 사양을 올려도 응답 시간은 줄지 않는다.
-- **LLM을 호출하지 않고 루프 동작을 검증하는 방법**: 멀티턴 사이클을 테스트하려면 여러 턴을 돌려야 해서 매번 Gemini를 호출하면 CI에서 돌릴 수 없었음. 노드를 전부 가짜로 갈아끼우고 **judge 노드의 호출 횟수를 세는 방식**으로 사이클을 증명. 답변을 두 번 제출했을 때 judge와 retrieval이 각각 2회 호출됐다면 실행이 실제로 되돌아간 것. interrupt/resume, 질문 교체, history 누적, MAX_TURNS 종료, 세션 격리까지 전부 API 키 없이 검증(테스트 10개). 회귀가 나기 쉬운 부분(라우팅·상태 전이)이 키 없이 검증 가능한 계층에 몰려 있다는 패턴이 Agent 3분기 확장에 이어 재확인됨
-- **멀티턴에서는 "답변을 미리 준비하는" 검증 방식이 성립하지 않음**: 실제 Gemini로 루프를 돌릴 때 답변 3개를 미리 정해두고 순서대로 넣었더니, 질문이 턴마다 동적으로 바뀌면서 3턴째에 동문서답이 되어 점수가 8점에서 2점으로 급락. 버그가 아니라 Judge가 질문·답변 불일치를 정확히 잡아낸 것이었음. 단발성 검증에서 쓰던 "고정된 입력 → 기대 출력" 방식이 대화형 구조에서는 그대로 통하지 않는다는 것을 확인
-- **Agent 확장 시 병렬보다 순차가 나은 경우가 있음**: Learning Tip과 Followup을 처음엔 병렬 노드로 설계했으나, 두 노드가 같은 약점(improvements)을 각자 독립적으로 해석하면 서로 다른 부분을 짚을 위험을 발견. Learning Tip이 먼저 topic을 정하고 Followup이 그 결과를 이어받는 순차 구조로 변경해, 두 출력이 항상 같은 주제를 가리키도록 함.
+**작은 표본에서 내린 결론은 뒤집힌다**
+
+임베딩 비교에서 5문항일 때는 Gemini Embedding이 우세했는데, 20문항으로 늘리자 `ko-sroberta-multitask`가 Top-1 100%(20/20)로 앞섰습니다. 정반대 결론이었습니다. KB가 2개 문서일 때 Context Precision이 항상 1.0000이던 것도 같은 이유였습니다. 변별력이 없어서 만점이 나온 것을 성능이 좋다고 읽고 있었습니다.
+
+**문서 분리 단위는 파일 크기가 아니라 "완결된 근거 단위"다**
+
+독립된 개념이 나열된 문서(`postgresql.md`, `spring.md`)는 하위 주제로 쪼갤수록 검색이 좋아졌지만, 비교형 문서(`session_vs_token.md`)는 반대로 정의·차이·확장성을 한 chunk에 묶어야 좋아졌습니다. "잘게 쪼갤수록 좋다"가 아니라 **질문 하나에 답할 근거가 흩어지지 않는 단위**가 기준이었습니다. 이 원칙으로 KB를 재구성해 Top-1 100%, Faithfulness 0.9708까지 올렸습니다.
+
+**검색이 정확해도 생성이 컨텍스트를 벗어난다**
+
+Retriever가 올바른 근거를 찾아줘도 LLM이 그 밖의 내용을 덧붙이는 것을 관찰했습니다. RAGAS로 재보니 Calibration Set 17개의 평균 Faithfulness가 0.4412였습니다. Retrieval 성공과 생성 충실도는 별개로 측정해야 하는 값입니다.
+
+**채점이 틀렸을 때 의심할 것은 채점자가 아니라 채점기준이었다**
+
+Judge Calibration이 52.9%로 나왔을 때 원인은 Judge가 아니라 **Calibration Set의 설계 결함**(같은 답변에 다른 기대치)이었습니다. 재설계로 94.1%가 됐습니다. Phase 12에서 표본을 44개로 늘렸을 때도 처음엔 51.2%였는데, 이번에도 원인은 제가 붙인 라벨이었습니다. `average`로 분류한 답변에 틀린 내용이 없어 높은 점수가 정상이었던 겁니다. **실패가 한 방향으로만 쏠리면 대상이 아니라 기준을 봐야 합니다.**
+
+**LLM 없이 검증 가능한 계층을 분리해두면 전수 검증이 된다**
+
+분기 함수(`decide_next_step`)가 State만 받는 순수 함수라 0~10점 11개 값을 Gemini 호출 없이 전부 확인할 수 있었습니다. 멀티턴 사이클도 노드를 가짜로 갈아끼우고 **judge 호출 횟수를 세는 방식**으로 증명했습니다. 답변을 두 번 제출했을 때 judge가 2회 불렸다면 실행이 되돌아간 것이니까요. 덕분에 회귀가 가장 나기 쉬운 라우팅·상태 전이가 CI에서 매번 검증됩니다.
+
+**설계의 대가는 측정해야 알 수 있다**
+
+Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 겨냥하게 하려는 선택이었는데, 그 비용은 모르고 있었습니다. 배포 후 재보니 Gemini를 3회 호출하는 구간이 2회인 구간보다 4~6초 느렸습니다. 동시에 기준선(측정 당시 헬스체크였던 `GET /`)이 전체의 0.2% 미만이라 **병목이 서버 연산도 네트워크도 아닌 LLM 응답 대기**임이 드러났습니다. 따라서 인스턴스 사양 상향은 주된 개선 수단이 아니었습니다.
 
 ## Tech Stack
  
@@ -123,23 +130,29 @@ flowchart TB
 - **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 18개 문서 (retrieval unit 기준으로 재구성)
 - **Embedding**: `ko-sroberta-multitask` (기본), Gemini Embedding(`gemini-embedding-001`, 비교 실험용)
 - **LLM**: Gemini 3.5 Flash (structured output)
-- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(94.1%), RAGAS Faithfulness(Calibration Set 기준 평균 0.4412), Retrieval 전용 평가셋(20문항: Top-1 100%·Faithfulness 0.9708·Context Precision 1.0000), Embedding 비교(20문항 기준: ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500, ko-sroberta 최종 채택)
+- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(v1 17개 / v2 44개), RAGAS Faithfulness(Calibration Set 기준 평균 0.4412), Retrieval 전용 평가셋(20문항: Top-1 100%·Faithfulness 0.9708·Context Precision 1.0000), Embedding 비교(20문항 기준: ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500, ko-sroberta 최종 채택)
 
 ## Project Outcomes
 
-- Semantic Retrieval, Faithfulness, Judge Calibration을 실험으로 검증하며 설계를 반복 개선
-- LangChain LCEL 기반 RAG(Retrieval → Generation/Judge)를 LangGraph StateGraph로 마이그레이션
-- Judge Calibration Set(17개)으로 평가 로직을 검증하고, 이를 마이그레이션 회귀 테스트로 재사용
-- Retrieval / Judge / Generation을 독립적인 Graph Node로 분리해 디버깅 가능성과 확장성 확보
-- technical_score 기반 Agent를 구현하고, Learning Tip이 생성한 topic을 Followup이 이어받도록 설계하여 Agent 출력의 일관성을 확보
-- Agent를 점수 구간별 3분기(개념 설명 / 약점 코칭 / 심화 질문)로 확장해 모든 점수대에서 결과가 나오도록 개선. 라우팅 로직은 순수 함수로 분리해 LLM 호출 없이 0~10점 전 구간을 전수 검증
-- RAGAS(Faithfulness, Context Precision)를 도입하고, KB 규모(2개에서 11개로)가 지표 변별력에 미치는 영향을 실험으로 확인
-- 동일 KB에 두 임베딩(`ko-sroberta-multitask`, Gemini Embedding)을 각각 인덱싱해 비교 실험 파이프라인 구축
-- Retrieval 전용 평가셋(20문항)을 구축하고, 문서 분리 전략을 "완결된 근거 단위" 기준으로 재설계해 Top-1 정확도 100%·Faithfulness 0.9708까지 개선
-- Embedding 비교를 20문항 평가셋으로 재실행한 결과, 기존 5문항 표본(Gemini 우세) 결론이 뒤집혀 ko-sroberta-multitask가 Top-1 100%·Faithfulness 0.9708로 근소 우세해 최종 임베딩으로 채택
-- FastAPI로 Docker 패키징·EC2 배포·CI/CD 파이프라인을 구축하고, 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
-- 배포한 서버를 응답 시간·프로세스 상태·패킷 세 계층에서 관찰해, "응답이 느린 원인은 LLM 대기"라는 결론을 서로 독립적인 세 각도로 교차 검증 ([분석 보고서](#문서))
-- 그래프에 사이클을 도입해 멀티턴 면접 루프를 구현하고(`interrupt`로 멈췄다 `Command(resume)`으로 재개), 조건부 분기만으로는 답할 수 없던 "왜 LCEL이 아니라 LangGraph인가"에 구조로 답함
+**RAG 파이프라인**
+- LCEL로 먼저 구현한 뒤 LangGraph StateGraph로 마이그레이션. 기존 코드를 보존해 과정 자체를 남김
+- Retrieval / Judge / Generation을 독립 Node로 분리해 문제 발생 지점을 특정 가능하게 설계
+- 문서 분리 전략을 "완결된 근거 단위"로 재설계해 Top-1 100%·Faithfulness 0.9708 달성
+
+**Agent와 멀티턴**
+- 점수 구간별 3분기(개념 설명 / 약점 코칭 / 심화 질문)로 확장해 모든 점수대에서 결과가 나오도록 개선
+- 그래프에 사이클을 도입해 멀티턴 루프 구현(`interrupt` / `Command(resume)`). "왜 LCEL이 아니라 LangGraph인가"에 구조로 답함
+- 라우팅을 순수 함수로 분리해 LLM 호출 없이 0~10점 전 구간과 루프 동작을 전수 검증
+
+**평가 체계**
+- Judge Calibration Set으로 채점 신뢰도를 검증하고, 이를 마이그레이션 회귀 테스트로 재사용
+- RAGAS(Faithfulness, Context Precision)를 도입하고 KB 규모가 지표 변별력에 미치는 영향을 확인
+- 두 임베딩을 동일 KB에 인덱싱해 비교하는 파이프라인 구축. 표본을 늘리자 결론이 뒤집힘
+- Calibration Set을 44개로 확대하고 판정 기준을 점수 범위에서 **코칭 경로 일치**로 전환. 반복 측정으로 변동 폭(약 5%p)을 확보해 이후 개선의 유의미성을 판정할 기준선 마련
+
+**서빙과 운영**
+- Docker 패키징·CI/CD·EC2 배포에 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
+- 배포한 서버를 응답 시간·프로세스 상태·패킷 세 계층에서 관찰해 "응답 지연의 원인은 LLM 대기"를 교차 검증 ([분석 보고서](#문서))
 
 ## API
 
@@ -163,7 +176,9 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
   -H "Content-Type: application/json" \
   -d '{"question": "JWT란 무엇인가?", "answer": "..."}'
 ```
-응답: `{"technical_score": ..., "completeness_score": ..., "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "next_action": "...", "concept_explanation": {...} | null, "learning_tip": {...} | null, "followup_question": "..." | null, "advanced_question": {...} | null}`
+응답: `{"deductions": [{"reason": "...", "points": N}], "technical_score": ..., "completeness_score": ..., "level": "junior" | "middle" | "senior", "strengths": [...], "improvements": [...], "overall_feedback": "...", "retrieved_sources": [...], "next_action": "...", "concept_explanation": {...} | null, "learning_tip": {...} | null, "followup_question": "..." | null, "advanced_question": {...} | null}`
+
+`level`은 지원자의 연차가 아니라 그 답변 하나가 보여준 수준입니다. 트레이드오프까지 설명하면 `senior`, 개념과 동작 원리를 정확히 설명하면 `middle`, 개념은 알지만 표면적이면 `junior`입니다.
 
 `technical_score` 구간에 따라 셋 중 하나의 경로만 실행되고, 나머지 필드는 `null`입니다.
 
@@ -222,12 +237,14 @@ docker compose up -d
 `main` 브랜치에 푸시하면 GitHub Actions가 다음을 자동 수행합니다.
 
 ```
-push → test (회귀 테스트 24개) → docker-build (이미지 빌드 + 스모크 테스트) → deploy (EC2 배포)
+push → test (회귀 테스트 35개) → docker-build (빌드 + 검증 + Docker Hub push) → deploy (EC2가 이미지를 받아 재기동)
 ```
 
 - **test**: 분기 로직, 그래프 구조, chunking 등 Gemini API 키가 필요 없는 계층만 검증합니다. 비밀값을 CI에 노출하지 않기 위한 설계이며, 마침 회귀가 가장 나기 쉬운 부분(Agent 분기)이 이 범위에 들어옵니다.
-- **docker-build**: 깨끗한 환경(linux/amd64)에서 빌드되는지 확인하고, CUDA 패키지가 다시 섞이면 실패 처리합니다. 실제로 CPU torch 최적화가 에러 없이 적용되지 않았던 적이 있어 자동 검사로 고정했습니다.
-- **deploy**: 앞의 두 job이 통과한 경우에만 실행됩니다(`needs`). EC2에 SSH로 접속해 재기동한 뒤, 외부에서 헬스체크로 실제 응답까지 확인합니다.
+- **docker-build**: 깨끗한 환경(linux/amd64)에서 빌드하고, CUDA 패키지가 다시 섞이면 실패 처리합니다. 실제로 CPU torch 최적화가 에러 없이 적용되지 않았던 적이 있어 자동 검사로 고정했습니다. 스모크 테스트까지 통과한 이미지만 Docker Hub에 올리며, `latest`와 커밋 SHA 두 태그를 답니다.
+- **deploy**: 앞의 두 job이 통과한 경우에만 실행됩니다(`needs`). EC2는 빌드하지 않고 Docker Hub에서 이미지를 받아 재기동한 뒤, 외부에서 헬스체크로 실제 응답까지 확인합니다.
+
+빌드 위치를 EC2에서 CI로 옮긴 이유는 두 가지입니다. 맥(arm64)에서 `--platform linux/amd64`로 빌드하면 QEMU 에뮬레이션이 임베딩 모델 로드 단계에서 멈춰 실패했고(두 번 재현), EC2에서 빌드하면 `t3.small`의 CPU와 디스크를 배포마다 소모합니다. GitHub Actions 러너는 네이티브 amd64라 두 문제가 함께 해소됩니다. 커밋 SHA 태그를 함께 달아두면 문제가 생겼을 때 특정 커밋 이미지로 되돌릴 수 있습니다.
 
 ## 문서
 
