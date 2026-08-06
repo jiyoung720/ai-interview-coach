@@ -25,6 +25,9 @@ const $ = (id) => document.getElementById(id);
 let sessionId = null;
 let currentQuestion = null;   // 지금 화면에서 답해야 할 질문
 let pendingOutOfScope = false;  // 직전 턴이 근거 부족으로 보류됐는가 (Phase 17)
+// 끝난 뒤 요약을 만들려고 턴을 그대로 모아둔다. 서버의 history에는 마지막 턴이 없다.
+// await_answer가 다음 턴을 기다리며 직전 턴을 기록하는 구조라, 마지막 턴은 거기 도달하지 못한다
+let sessionTurns = [];
 
 // 공통 유틸: status 영역에 메시지 표시.
 // label을 주면 그 부분만 굵게 나온다 (예: "업로드 완료:" + 파일명).
@@ -129,10 +132,11 @@ function selectQuestion(question, li) {
   // 중간에 다른 질문으로 갈아타면 이어지던 맥락이 깨진다.
   // 다만 근거가 없어 보류된 상태는 예외다. 그때는 채점 자체가 없었고
   // 다른 질문으로 이어가는 것이 정해진 흐름이다 (Phase 17).
-  if (sessionId && !pendingOutOfScope) {
-    setStatus($("interview-status"), "진행 중인 면접이 있습니다. 끝내거나 다시 시작해주세요.", "error");
-    return;
-  }
+  //
+  // 여기서 경고 문구를 띄우지 않는 이유: 목록을 잠근 모습(.locked)이 이미 보이고,
+  // 끝내려면 "면접 종료" 버튼이라는 분명한 출구가 있다. 화면 맨 아래에 뜨는 문구는
+  // 클릭한 지점에서 멀어 눈에 띄지도 않았다.
+  if (sessionId && !pendingOutOfScope) return;
   currentQuestion = question;
   document.querySelectorAll(".question-list li").forEach((el) => el.classList.remove("selected"));
   li.classList.add("selected");
@@ -176,6 +180,14 @@ $("submit-btn").addEventListener("click", async () => {
     sessionId = data.session_id;
     pendingOutOfScope = data.status === "out_of_scope";
     appendTurn(data, answeredQuestion, answer);
+    sessionTurns.push({
+      turn: data.turn,
+      question: answeredQuestion,
+      answer,
+      evaluation: data.evaluation,
+      outOfScope: data.status === "out_of_scope",
+    });
+    lockQuestionList(true);
 
     if (data.status === "out_of_scope") {
       askScopeChoice(data);
@@ -184,6 +196,7 @@ $("submit-btn").addEventListener("click", async () => {
       showCurrentQuestion(data.next_question, `턴 ${data.turn + 1} 질문`);
       $("answer-input").value = "";
       $("submit-btn").textContent = "답변 제출";
+      $("end-session-btn").hidden = false;   // 남은 턴을 채우지 않고 나갈 출구
       setStatus($("interview-status"), "", "");
     } else {
       finishSession(data);
@@ -292,6 +305,19 @@ function appendTurn(data, question, answer) {
   $("turn-badge").hidden = false;
 }
 
+// 세션이 도는 동안 질문 목록을 잠근다. 클릭이 막힌 이유를 문구로 설명하는 대신
+// 목록 자체를 눌리지 않게 보여준다
+function lockQuestionList(locked) {
+  $("question-list").classList.toggle("locked", locked && !pendingOutOfScope);
+}
+
+// 남은 턴을 채우지 않고 중간에 끝낸다. 되돌릴 수 없으므로 한 번 확인받는다
+$("end-session-btn").addEventListener("click", () => {
+  const remaining = $("turn-badge").textContent;
+  if (!confirm(`진행 중인 면접이 있습니다 (${remaining}).\n지금 종료하면 남은 턴은 진행되지 않습니다. 끝낼까요?`)) return;
+  finishSession({ end_reason: "ended_by_user", max_turns: 0 });
+});
+
 // 근거가 없어 보류했을 때 다음 행동을 사용자가 고르게 한다.
 // 자동으로 끝내지 않는 이유: 질문 하나가 KB 밖이었을 뿐 면접이 끝난 것은 아니다
 function askScopeChoice(data) {
@@ -307,6 +333,7 @@ $("scope-continue-btn").addEventListener("click", () => {
   $("answer-area").hidden = false;
   $("answer-input").value = "";
   currentQuestion = null;
+  lockQuestionList(false);   // 보류 상태에서는 다시 고를 수 있어야 한다
   document.querySelectorAll(".question-list li").forEach((el) => el.classList.remove("selected"));
   setStatus($("interview-status"), "위에서 다른 질문을 골라주세요.", "");
   $("step-questions").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -328,17 +355,124 @@ function finishSession(data) {
     out_of_scope_ended: "고정 지식에 근거가 없는 주제라 평가를 보류하고 종료했습니다.",
     completed: "면접이 종료되었습니다.",
   };
-  $("end-message").textContent = reasons[data.end_reason] || reasons.completed;
+  const reasonsWithUser = {
+    ...reasons,
+    ended_by_user: "면접을 중간에 종료했습니다.",
+  };
+  $("end-message").textContent = reasonsWithUser[data.end_reason] || reasons.completed;
   $("session-end").hidden = false;
+  $("end-session-btn").hidden = true;
+  showSummary();
 }
+
+// ---- 종료 후 요약 ----
+// 타임라인은 세로로 길어 전체 흐름이 한눈에 안 들어온다.
+// 끝난 시점에 질문·답변·점수를 한 화면으로 묶어 되짚게 한다
+function showSummary() {
+  const graded = sessionTurns.filter((t) => t.evaluation);
+  const body = $("summary-body");
+  body.innerHTML = "";
+
+  if (!sessionTurns.length) {
+    body.appendChild(el("p", "진행된 턴이 없습니다."));
+  } else {
+    body.appendChild(summaryOverview(graded));
+    sessionTurns.forEach((t) => body.appendChild(summaryTurn(t)));
+  }
+
+  $("summary-modal").hidden = false;
+  // 모달이 떠 있는 동안 뒤 페이지가 같이 스크롤되면 어디를 보고 있는지 놓친다
+  document.body.classList.add("modal-open");
+  $("summary-close").focus();
+}
+
+// 채점된 턴만 평균에 넣는다. 보류된 턴에는 점수가 없다
+function summaryOverview(graded) {
+  const box = document.createElement("div");
+  box.className = "summary-overview";
+
+  if (!graded.length) {
+    box.appendChild(el("p", "채점된 턴이 없어 평균을 낼 수 없습니다."));
+    return box;
+  }
+
+  const avg = (key) =>
+    (graded.reduce((sum, t) => sum + t.evaluation[key], 0) / graded.length).toFixed(1);
+  const tech = avg("technical_score");
+  const comp = avg("completeness_score");
+
+  box.innerHTML = `
+    <div class="summary-stat"><span class="summary-stat-label">채점된 턴</span><strong>${graded.length}</strong></div>
+    <div class="summary-stat"><span class="summary-stat-label">기술 평균</span><strong class="${scoreClass(Math.round(tech))}">${tech}</strong></div>
+    <div class="summary-stat"><span class="summary-stat-label">완성도 평균</span><strong class="${scoreClass(Math.round(comp))}">${comp}</strong></div>
+  `;
+  return box;
+}
+
+function summaryTurn(t) {
+  const row = document.createElement("div");
+  row.className = "summary-turn";
+
+  const head = document.createElement("div");
+  head.className = "summary-turn-head";
+  const no = el("span", t.outOfScope ? "평가 보류" : `턴 ${t.turn}`);
+  no.className = "turn-no";
+  head.appendChild(no);
+  if (t.evaluation) head.appendChild(scoreBadges(t.evaluation));
+  row.appendChild(head);
+
+  row.appendChild(summaryField("질문", t.question));
+  row.appendChild(summaryField("내 답변", t.answer));
+  if (t.evaluation?.overall_feedback) {
+    row.appendChild(summaryField("총평", cleanText(t.evaluation.overall_feedback)));
+  }
+  if (t.evaluation?.improvements?.length) {
+    const wrap = document.createElement("div");
+    wrap.className = "summary-field";
+    wrap.appendChild(el("span", "개선점"));
+    wrap.appendChild(list(t.evaluation.improvements));
+    row.appendChild(wrap);
+  }
+  return row;
+}
+
+function summaryField(label, text) {
+  const wrap = document.createElement("div");
+  wrap.className = "summary-field";
+  wrap.appendChild(el("span", label));
+  wrap.appendChild(el("p", text));
+  return wrap;
+}
+
+function closeSummary() {
+  $("summary-modal").hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+$("summary-close").addEventListener("click", closeSummary);
+$("summary-close-btn").addEventListener("click", closeSummary);
+$("summary-btn").addEventListener("click", showSummary);
+$("summary-modal").addEventListener("click", (e) => {
+  if (e.target === $("summary-modal")) closeSummary();   // 바깥을 누르면 닫는다
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("summary-modal").hidden) closeSummary();
+});
+$("summary-restart-btn").addEventListener("click", () => {
+  closeSummary();
+  $("restart-btn").click();
+});
 
 $("restart-btn").addEventListener("click", () => {
   sessionId = null;
   currentQuestion = null;
   pendingOutOfScope = false;
+  sessionTurns = [];
+  lockQuestionList(false);
   $("timeline").innerHTML = "";
   $("answer-input").value = "";
   $("answer-area").hidden = false;
+  $("end-session-btn").hidden = true;
   $("scope-choice").hidden = true;
   $("session-end").hidden = true;
   $("current-question").hidden = true;

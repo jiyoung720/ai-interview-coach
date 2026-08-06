@@ -70,7 +70,11 @@
 
       <div id="answer-area">
         <textarea id="answer-input" placeholder="답변을 입력하세요..." rows="5"></textarea>
-        <button id="submit-btn">면접 시작</button>
+        <div class="answer-actions">
+          <!-- 남은 턴을 채우지 않고 중간에 끝낼 수 있는 유일한 출구 -->
+          <button id="end-session-btn" class="secondary" hidden>면접 종료</button>
+          <button id="submit-btn">면접 시작</button>
+        </div>
       </div>
 
       <div class="status" id="interview-status"></div>
@@ -86,10 +90,27 @@
       <!-- 세션 종료 안내 -->
       <div class="session-end" id="session-end" hidden>
         <p id="end-message"></p>
+        <button id="summary-btn" class="secondary">요약 다시 보기</button>
         <button id="restart-btn">다른 질문으로 다시 시작</button>
       </div>
     </section>
   </main>
+
+  <!-- 면접이 끝나면 전체를 한 화면에서 되짚어 볼 수 있게 하는 요약.
+       타임라인은 위아래로 길어서 흐름과 총평이 한눈에 안 들어온다 -->
+  <div class="modal-backdrop" id="summary-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="summary-title">
+      <div class="modal-head">
+        <h3 id="summary-title">모의 면접 요약</h3>
+        <button id="summary-close" class="icon-btn" aria-label="닫기">&times;</button>
+      </div>
+      <div class="modal-body" id="summary-body"></div>
+      <div class="modal-foot">
+        <button id="summary-close-btn" class="secondary">닫고 기록 보기</button>
+        <button id="summary-restart-btn">다른 질문으로 다시 시작</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>
