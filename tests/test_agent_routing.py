@@ -14,7 +14,7 @@ from rag.graph_nodes import (
     decide_scope,
     out_of_scope_node,
 )
-from rag.schemas import EvaluationResult
+from rag.schemas import AdvancedQuestion, EvaluationResult, LearningTip
 
 
 def make_state(technical_score: int) -> dict:
@@ -131,3 +131,32 @@ def test_chain_a는_검색후_생성으로_이어진다():
     nodes = {n for n in graph.nodes if not n.startswith("__")}
     assert nodes == {"retrieval", "generation"}
     assert {e.target for e in graph.edges if e.source == "retrieval"} == {"generation"}
+
+
+def test_이전_턴의_코칭이_이번_턴_결과로_새지_않는다():
+    # LangGraph State는 턴을 넘어 누적된다. 1턴이 learning_tip 경로였고 2턴이
+    # advanced 경로였다면, 2턴 State에도 1턴의 learning_tip이 그대로 남아 있다.
+    # next_action으로 이번 턴에 실제로 돈 경로만 골라내지 않으면 코칭이 두 개 나간다.
+    from api.interviews import _coaching_payload
+
+    values = {
+        "next_action": "advanced_question_generated",
+        "learning_tip": LearningTip(topic="세션", reason="...", recommended_sections=[]),
+        "followup_question": "1턴에서 만든 꼬리질문",
+        "advanced_question": AdvancedQuestion(question="2턴 심화 질문", intent="..."),
+    }
+    payload = _coaching_payload(values)
+
+    assert payload["advanced_question"]["question"] == "2턴 심화 질문"
+    assert payload["learning_tip"] is None
+    assert payload["followup_question"] is None
+
+
+def test_범위_밖_턴에는_코칭을_내보내지_않는다():
+    from api.interviews import _coaching_payload
+
+    values = {
+        "next_action": "out_of_scope",
+        "learning_tip": LearningTip(topic="직전 턴", reason="...", recommended_sections=[]),
+    }
+    assert _coaching_payload(values, out_of_scope=True)["learning_tip"] is None

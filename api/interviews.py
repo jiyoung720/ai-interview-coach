@@ -33,28 +33,32 @@ OUT_OF_SCOPE_MESSAGE = (
 )
 
 
+# 어느 경로가 돌았을 때 어떤 코칭 키가 이번 턴의 결과인지.
+# State는 턴을 넘어 누적되므로 키가 있다는 것만으로는 이번 턴 것인지 알 수 없다.
+# 1턴이 learning_tip 경로였고 2턴이 advanced 경로였다면 2턴 응답에도 1턴의
+# learning_tip이 그대로 남아 있어, 화면에 코칭이 두 개 뜬다.
+COACHING_KEYS_BY_ACTION = {
+    "fundamentals_explained": {"concept_explanation"},
+    "followup_generated": {"learning_tip", "followup_question"},
+    "advanced_question_generated": {"advanced_question"},
+}
+
+
 def _coaching_payload(values: dict, out_of_scope: bool = False) -> dict:
-    """점수 구간에 따라 셋 중 하나만 채워지는 코칭 결과를 꺼낸다.
-    실행되지 않은 경로의 키는 State에 아예 없으므로 .get()으로 조회한다.
+    """이번 턴에 실제로 실행된 경로의 코칭만 꺼낸다.
 
-    범위 밖 턴에서는 전부 비운다. State는 턴을 넘어 누적되므로 그냥 꺼내면
-    직전 턴의 코칭이 이번 턴 결과인 것처럼 나가기 때문이다."""
-    if out_of_scope:
-        return {
-            "concept_explanation": None,
-            "learning_tip": None,
-            "followup_question": None,
-            "advanced_question": None,
-        }
+    범위 밖 턴에는 코칭이 없으므로 전부 비운다."""
+    allowed = set() if out_of_scope else COACHING_KEYS_BY_ACTION.get(values.get("next_action"), set())
 
-    concept = values.get("concept_explanation")
-    tip = values.get("learning_tip")
-    advanced = values.get("advanced_question")
+    def pick(key):
+        value = values.get(key) if key in allowed else None
+        return value.model_dump() if hasattr(value, "model_dump") else value
+
     return {
-        "concept_explanation": concept.model_dump() if concept else None,
-        "learning_tip": tip.model_dump() if tip else None,
-        "followup_question": values.get("followup_question"),
-        "advanced_question": advanced.model_dump() if advanced else None,
+        "concept_explanation": pick("concept_explanation"),
+        "learning_tip": pick("learning_tip"),
+        "followup_question": pick("followup_question"),
+        "advanced_question": pick("advanced_question"),
     }
 
 
