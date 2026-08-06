@@ -1,6 +1,8 @@
 [
   {
     "question": "JWT란 무엇인가?",
+    "topic": "jwt",
+    "type": "in_scope",
     "reference": "JWT는 사용자 인증 정보를 안전하게 전달하기 위한 토큰 기반 인증 방식으로, Header, Payload, Signature로 구성되며 서버가 별도 세션 저장소 없이 서명을 검증해 사용자를 인증할 수 있다.",
     "expected_sources": [
       "jwt.md"
@@ -9,6 +11,8 @@
   },
   {
     "question": "JWT와 OAuth는 어떻게 다른가요?",
+    "topic": "oauth",
+    "type": "in_scope",
     "reference": "OAuth는 권한 위임을 위한 프로토콜이고, JWT는 토큰의 형식을 정의하는 표준이다. 서로 다른 계층의 개념으로, OAuth의 Access Token을 JWT 형식으로 발급할 수도 있고 불투명 토큰으로 발급할 수도 있다.",
     "expected_sources": [
       "oauth.md"
@@ -17,6 +21,8 @@
   },
   {
     "question": "OAuth 2.0의 Authorization Code Grant 흐름을 설명해주세요.",
+    "topic": "oauth",
+    "type": "in_scope",
     "reference": "사용자가 Authorization Server에서 로그인하고 동의하면, Client는 Authorization Code를 받고 이 코드를 다시 Access Token으로 교환한다. 이 과정에서 Access Token이 브라우저를 통해 직접 노출되지 않아 보안성이 높다.",
     "expected_sources": [
       "oauth.md"
@@ -25,6 +31,8 @@
   },
   {
     "question": "세션 기반 인증과 토큰 기반 인증의 차이는 무엇인가요?",
+    "topic": "session_vs_token",
+    "type": "in_scope",
     "reference": "세션 기반 인증은 서버가 상태를 저장하고 클라이언트에는 세션 ID만 전달한다. 토큰 기반 인증은 서버가 상태를 저장하지 않고, 토큰 자체에 서명된 정보로 검증한다. 세션은 수평 확장 시 공유 저장소가 필요하지만 토큰은 그렇지 않다.",
     "expected_sources": [
       "session_vs_token.md"
@@ -33,6 +41,8 @@
   },
   {
     "question": "JWT를 발급한 서버가 로그아웃 처리를 어떻게 할 수 있나요?",
+    "topic": "jwt_logout_invalidation",
+    "type": "in_scope",
     "reference": "토큰 방식은 발급된 토큰을 서버가 강제로 무효화하기 어렵다는 단점이 있어, 만료 시간을 짧게 잡고 재발급 절차를 두는 방식으로 보완한다.",
     "expected_sources": [
       "jwt_logout_invalidation.md"
@@ -41,6 +51,8 @@
   },
   {
     "question": "FastAPI에서 비동기 처리가 왜 유리한가요?",
+    "topic": "fastapi",
+    "type": "multi_source",
     "reference": "FastAPI는 ASGI 기반이라 I/O 대기 중에도 다른 요청을 처리할 수 있어, DB 조회나 LLM API 호출처럼 지연 시간이 긴 I/O 바운드 작업에서 처리량을 높일 수 있다. 다만 CPU 바운드 작업에는 비동기가 자동으로 이점을 주지 않는다.",
     "expected_sources": [
       "fastapi.md",
@@ -50,6 +62,8 @@
   },
   {
     "question": "비동기 처리와 멀티스레딩은 같은 개념인가요?",
+    "topic": "async_sync",
+    "type": "in_scope",
     "reference": "비동기 처리는 이벤트 루프를 통해 단일 스레드에서 여러 작업을 번갈아 처리하는 구조로, 여러 스레드를 만드는 것이 아니라 하나의 스레드가 대기 시간을 효율적으로 활용하는 방식이다.",
     "expected_sources": [
       "async_sync.md"
@@ -58,6 +72,8 @@
   },
   {
     "question": "I/O 바운드 작업과 CPU 바운드 작업에서 비동기 처리의 효과 차이는 무엇인가요?",
+    "topic": "async_sync",
+    "type": "in_scope",
     "reference": "비동기 처리는 I/O 바운드 작업에서 큰 이점을 준다. 반면 CPU 바운드 작업에는 이점을 주지 않는데, 이벤트 루프가 하나의 스레드로 동작하기 때문에 무거운 연산이 그 스레드를 계속 점유하면 다른 작업이 처리되지 못한다.",
     "expected_sources": [
       "async_sync.md"
@@ -66,6 +82,8 @@
   },
   {
     "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
+    "topic": "fastapi",
+    "type": "in_scope",
     "reference": "DB 세션 관리나 인증 토큰 검증처럼 여러 엔드포인트에서 반복되는 로직을 Depends로 분리해서, 엔드포인트 함수 본문에서 반복 코드를 줄일 수 있다.",
     "expected_sources": [
       "fastapi.md"
@@ -74,6 +92,8 @@
   },
   {
     "question": "Spring의 의존성 주입(DI) 방식은 FastAPI와 어떻게 비교되나요?",
+    "topic": "spring_di",
+    "type": "in_scope",
     "reference": "Spring에서는 @Autowired로 의존성을 주입하는데, 이는 FastAPI의 Depends()와 개념적으로 유사하다. 둘 다 객체 생성을 프레임워크에 위임해 결합도를 낮춘다.",
     "expected_sources": [
       "spring_di.md"
@@ -82,6 +102,8 @@
   },
   {
     "question": "Spring Bean의 기본 스코프는 무엇인가요?",
+    "topic": "spring_bean_scope",
+    "type": "in_scope",
     "reference": "Bean은 기본적으로 싱글톤 스코프로 관리되어, 애플리케이션 전체에서 하나의 인스턴스만 생성되고 재사용된다.",
     "expected_sources": [
       "spring_bean_scope.md"
@@ -90,6 +112,8 @@
   },
   {
     "question": "PostgreSQL에서 인덱스가 쓰기 성능에 미치는 영향은 무엇인가요?",
+    "topic": "postgresql_index",
+    "type": "in_scope",
     "reference": "인덱스는 조회 성능을 높이는 대신 쓰기 성능에는 부담을 준다. 데이터가 변경될 때마다 인덱스도 함께 갱신해야 하기 때문에, 자주 조회되지만 쓰기가 드문 컬럼에 인덱스를 거는 것이 일반적인 원칙이다.",
     "expected_sources": [
       "postgresql_index.md"
@@ -98,6 +122,8 @@
   },
   {
     "question": "트랜잭션의 ACID 속성은 무엇인가요?",
+    "topic": "transaction",
+    "type": "in_scope",
     "reference": "트랜잭션은 여러 SQL 작업을 하나의 논리적 단위로 묶는 것으로 ACID(원자성, 일관성, 고립성, 지속성) 속성을 보장한다. 모든 작업이 성공하면 COMMIT, 하나라도 실패하면 ROLLBACK된다.",
     "expected_sources": [
       "transaction.md"
@@ -106,6 +132,8 @@
   },
   {
     "question": "Docker 컨테이너와 가상머신의 차이는 무엇인가요?",
+    "topic": "docker",
+    "type": "in_scope",
     "reference": "가상머신은 하드웨어 자체를 가상화해 각각 별도의 OS를 띄우지만, 컨테이너는 호스트 OS의 커널을 공유하면서 프로세스 수준에서 격리되기 때문에 훨씬 가볍고 빠르게 실행된다.",
     "expected_sources": [
       "docker.md"
@@ -114,6 +142,8 @@
   },
   {
     "question": "Dockerfile의 레이어 캐싱은 어떻게 동작하나요?",
+    "topic": "docker",
+    "type": "in_scope",
     "reference": "이미지는 여러 레이어로 구성되는데, 각 레이어는 Dockerfile의 한 명령어에 대응하며 캐싱되어 재빌드 시 변경되지 않은 레이어는 재사용된다.",
     "expected_sources": [
       "docker.md"
@@ -122,6 +152,8 @@
   },
   {
     "question": "HTTP 401과 403 상태 코드의 차이는 무엇인가요?",
+    "topic": "http_status_code",
+    "type": "in_scope",
     "reference": "401은 인증 실패, 403은 권한 부족을 나타내며 이 둘은 자주 혼동된다.",
     "expected_sources": [
       "http_status_code.md"
@@ -130,6 +162,8 @@
   },
   {
     "question": "JWT를 HTTP 요청에 실어 보낼 때 어떤 헤더를 사용하나요?",
+    "topic": "authorization_header",
+    "type": "in_scope",
     "reference": "인증이 필요한 요청에서는 일반적으로 Authorization: Bearer 형태의 헤더에 Access Token을 담아 전달한다.",
     "expected_sources": [
       "authorization_header.md"
@@ -138,6 +172,8 @@
   },
   {
     "question": "캐시 무효화는 왜 어려운 문제로 여겨지나요?",
+    "topic": "caching",
+    "type": "in_scope",
     "reference": "캐시 무효화는 원본 데이터가 변경됐을 때 캐시된 값도 함께 갱신하거나 삭제하는 것으로, 제대로 처리하지 않으면 사용자가 오래된 데이터를 보게 되는 문제가 생긴다.",
     "expected_sources": [
       "caching.md"
@@ -146,6 +182,8 @@
   },
   {
     "question": "JWT 블랙리스트 관리에 어떤 저장소가 흔히 사용되나요?",
+    "topic": "caching",
+    "type": "multi_source",
     "reference": "JWT 블랙리스트나 세션 저장소로도 Redis가 흔히 쓰인다.",
     "expected_sources": [
       "caching.md",
@@ -155,6 +193,8 @@
   },
   {
     "question": "JWT를 쿠키에 저장하면 CORS 설정에서 무엇을 신경 써야 하나요?",
+    "topic": "cors",
+    "type": "multi_source",
     "reference": "인증 토큰을 쿠키에 저장해 다른 출처로 요청을 보내는 경우, 클라이언트에서는 credentials: include, 서버에서는 Access-Control-Allow-Credentials: true를 함께 설정해야 인증 정보가 포함된 요청이 정상적으로 처리된다.",
     "expected_sources": [
       "cors.md",
@@ -164,6 +204,8 @@
   },
   {
     "question": "정규화를 하면 어떤 문제를 막을 수 있나요?",
+    "topic": "db_normalization",
+    "type": "in_scope",
     "reference": "정규화는 데이터 중복을 줄여 갱신 이상, 삽입 이상, 삭제 이상을 막는다. 같은 값이 여러 행에 반복되면 수정 시 일부만 바뀌어 데이터가 어긋날 수 있기 때문이다.",
     "expected_sources": [
       "db_normalization.md"
@@ -172,6 +214,8 @@
   },
   {
     "question": "반정규화는 언제 적용하는 것이 좋은가요?",
+    "topic": "db_normalization",
+    "type": "in_scope",
     "reference": "정규화된 설계로 시작한 뒤 실제로 느린 쿼리가 확인됐을 때 그 지점에 한정해 적용한다. 조인이 줄어 조회는 빨라지지만 중복된 값을 갱신할 때 모든 위치를 함께 고쳐야 하는 부담이 생긴다.",
     "expected_sources": [
       "db_normalization.md"
@@ -180,6 +224,8 @@
   },
   {
     "question": "N+1 문제가 무엇이고 왜 발생하나요?",
+    "topic": "db_n_plus_one",
+    "type": "in_scope",
     "reference": "목록을 조회한 뒤 각 항목의 연관 데이터를 개별 쿼리로 가져오면서 쿼리가 폭증하는 현상이다. ORM의 지연 로딩이 반복문 안에서 매 항목마다 조회를 유발하기 때문에 발생한다.",
     "expected_sources": [
       "db_n_plus_one.md"
@@ -188,6 +234,8 @@
   },
   {
     "question": "지연 로딩을 모두 즉시 로딩으로 바꾸면 되지 않나요?",
+    "topic": "db_n_plus_one",
+    "type": "in_scope",
     "reference": "무조건 즉시 로딩으로 바꾸는 것은 답이 아니다. 대부분 쓰지 않는 연관 데이터까지 매번 읽으면 낭비이므로, 지연 로딩을 기본으로 두고 목록 조회처럼 N+1이 발생하는 지점에서만 함께 조회한다.",
     "expected_sources": [
       "db_n_plus_one.md"
@@ -196,6 +244,8 @@
   },
   {
     "question": "낙관적 락과 비관적 락은 어떤 기준으로 선택하나요?",
+    "topic": "db_lock",
+    "type": "in_scope",
     "reference": "충돌 빈도가 기준이다. 좌석 예매처럼 같은 행에 요청이 몰리면 비관적 락이, 게시글 수정처럼 동시에 건드릴 일이 드물면 낙관적 락이 적합하다.",
     "expected_sources": [
       "db_lock.md"
@@ -204,6 +254,8 @@
   },
   {
     "question": "동시에 같은 데이터를 수정하면 어떤 문제가 생기나요?",
+    "topic": "db_lock",
+    "type": "in_scope",
     "reference": "나중에 쓴 값이 앞선 값을 덮어써 갱신 손실이 발생한다. 재고 10개를 두 요청이 동시에 읽고 각각 1을 빼면 둘 다 9를 저장해 실제 판매량과 재고가 어긋난다.",
     "expected_sources": [
       "db_lock.md"
@@ -212,6 +264,8 @@
   },
   {
     "question": "실행 계획에서 Seq Scan이 나오면 무엇을 확인해야 하나요?",
+    "topic": "db_execution_plan",
+    "type": "in_scope",
     "reference": "조건에 맞는 행이 전체의 일부인데 Seq Scan이 나오면 인덱스가 없거나 있어도 사용되지 않는 상태를 의심한다. 인덱스 컬럼에 함수나 연산을 씌우면 인덱스를 타지 못한다.",
     "expected_sources": [
       "db_execution_plan.md"
@@ -220,6 +274,8 @@
   },
   {
     "question": "TCP와 UDP는 어떤 차이가 있나요?",
+    "topic": "tcp_udp",
+    "type": "in_scope",
     "reference": "TCP는 3-way handshake로 연결을 맺고 순서 번호와 재전송으로 전달을 보장한다. UDP는 연결을 맺지 않고 도착 확인이나 순서 보장을 하지 않는 대신 빠르다.",
     "expected_sources": [
       "tcp_udp.md"
@@ -228,6 +284,8 @@
   },
   {
     "question": "HTTPS는 HTTP와 비교해 무엇을 보장하나요?",
+    "topic": "https_tls",
+    "type": "in_scope",
     "reference": "TLS 계층을 더해 암호화, 무결성 검증, 서버 인증을 보장한다. HTTP는 평문이라 중간에서 가로채면 요청 본문과 인증 토큰이 그대로 노출된다.",
     "expected_sources": [
       "https_tls.md"
@@ -236,10 +294,282 @@
   },
   {
     "question": "브라우저에 URL을 입력하면 어떤 순서로 처리되나요?",
+    "topic": "browser_rendering",
+    "type": "in_scope",
     "reference": "DNS 조회로 도메인을 IP로 바꾸고 TCP 연결을 맺은 뒤(HTTPS면 TLS handshake 추가) HTTP 요청을 보낸다. 응답 HTML로 DOM 트리를 만들고 CSS와 합쳐 배치를 계산해 화면에 그린다.",
     "expected_sources": [
       "browser_rendering.md"
     ],
     "key_evidence": "먼저 도메인 이름을 IP 주소로 바꾸는 DNS 조회가 일어난다"
+  },
+  {
+    "question": "Kubernetes에서 Pod의 오토스케일링은 어떻게 설정하나요?",
+    "topic": "kubernetes",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "컨테이너 오케스트레이션. KB는 docker.md까지만 다룬다"
+  },
+  {
+    "question": "Deployment와 StatefulSet은 어떤 기준으로 나눠 쓰나요?",
+    "topic": "kubernetes",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "컨테이너 오케스트레이션"
+  },
+  {
+    "question": "Kafka 컨슈머 그룹의 리밸런싱은 언제 일어나나요?",
+    "topic": "kafka",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "메시지 큐. KB에 관련 문서 없음"
+  },
+  {
+    "question": "메시지 큐를 도입하면 어떤 문제를 해결할 수 있나요?",
+    "topic": "kafka",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "메시지 큐"
+  },
+  {
+    "question": "Redis의 RDB와 AOF 영속성 방식은 어떻게 다른가요?",
+    "topic": "redis_internal",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "caching.md는 Redis를 캐시 저장소 예시로만 언급하고 내부 동작은 다루지 않는다"
+  },
+  {
+    "question": "Elasticsearch의 역색인 구조는 어떻게 동작하나요?",
+    "topic": "elasticsearch",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "검색 엔진. KB에 관련 문서 없음"
+  },
+  {
+    "question": "GraphQL이 REST에 비해 갖는 장점은 무엇인가요?",
+    "topic": "graphql",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "rest_api_design.md는 REST만 다루고 GraphQL은 다루지 않는다"
+  },
+  {
+    "question": "gRPC에서 Protocol Buffers를 쓰는 이유가 무엇인가요?",
+    "topic": "grpc",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "RPC 프레임워크"
+  },
+  {
+    "question": "GitHub Actions 워크플로에서 빌드 캐시를 어떻게 재사용하나요?",
+    "topic": "cicd",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "CI/CD. docker.md의 레이어 캐싱과는 다른 주제다"
+  },
+  {
+    "question": "S3의 스토리지 클래스는 어떤 기준으로 선택하나요?",
+    "topic": "aws",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "클라우드 서비스"
+  },
+  {
+    "question": "MSA에서 서킷 브레이커 패턴은 왜 필요한가요?",
+    "topic": "msa",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "분산 시스템. Phase 13에서 KB 범위 밖으로 정함"
+  },
+  {
+    "question": "WebSocket과 HTTP 폴링은 어떤 차이가 있나요?",
+    "topic": "websocket",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "실시간 통신. KB의 HTTP 문서들은 요청·응답 모델만 다룬다"
+  },
+  {
+    "question": "MongoDB에서 스키마를 어떻게 설계하나요?",
+    "topic": "nosql",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "NoSQL. KB의 DB 문서는 관계형 데이터베이스 기준이다"
+  },
+  {
+    "question": "데이터베이스 샤딩은 어떤 기준으로 나누나요?",
+    "topic": "db_scaling",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "분산 데이터베이스. Phase 13에서 KB 범위 밖으로 정함"
+  },
+  {
+    "question": "git rebase와 merge는 어떤 상황에 각각 쓰나요?",
+    "topic": "git",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "버전 관리"
+  },
+  {
+    "question": "단위 테스트에서 모킹은 언제 사용하나요?",
+    "topic": "testing",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "테스트 전략. KB에 관련 문서 없음"
+  },
+  {
+    "question": "로드 밸런서의 라운드 로빈과 최소 연결 방식은 어떻게 다른가요?",
+    "topic": "load_balancing",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "분산 시스템"
+  },
+  {
+    "question": "본인의 장점과 단점을 말씀해 주세요.",
+    "topic": "behavioral",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "인성 면접 질문. 고정 지식으로 채점할 대상이 아니다"
+  },
+  {
+    "question": "팀 프로젝트에서 갈등이 있었을 때 어떻게 해결하셨나요?",
+    "topic": "behavioral",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "인성 면접 질문"
+  },
+  {
+    "question": "JPA의 영속성 컨텍스트에서 더티 체킹은 어떻게 동작하나요?",
+    "topic": "jpa",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "db_n_plus_one.md가 ORM 지연 로딩을 다루지만 영속성 컨텍스트 자체는 다루지 않는다"
+  },
+  {
+    "question": "SQL 인젝션을 막으려면 어떻게 해야 하나요?",
+    "topic": "security_injection",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "KB는 인증·인가를 다루지만 주입 공격 방어는 다루지 않는다"
+  },
+  {
+    "question": "프로세스와 스레드의 차이는 무엇인가요?",
+    "topic": "os_process",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "async_sync.md가 스레드를 언급하지만 운영체제 관점의 프로세스·스레드는 다루지 않는다"
+  },
+  {
+    "question": "HTTP 캐시 헤더 Cache-Control은 어떻게 설정하나요?",
+    "topic": "http_cache",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "caching.md는 애플리케이션 캐시를, http_* 문서는 메서드·상태코드를 다룬다. HTTP 캐시 헤더는 어느 쪽에도 없다"
+  },
+  {
+    "question": "읽기 전용 복제본을 두면 어떤 점이 좋아지나요?",
+    "topic": "db_replication",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "DB 문서들이 인덱스·락·정규화를 다루지만 복제는 다루지 않는다"
+  },
+  {
+    "question": "Spring AOP는 어떤 문제를 해결하나요?",
+    "topic": "spring_aop",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "spring_di.md가 IoC/DI를 다루지만 AOP는 다루지 않는다"
+  },
+  {
+    "question": "커넥션 풀의 크기는 어떤 기준으로 정하나요?",
+    "topic": "connection_pool",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "DB 문서들이 쿼리 성능을 다루지만 커넥션 관리는 다루지 않는다"
+  },
+  {
+    "question": "HTTP/2의 멀티플렉싱은 무엇인가요?",
+    "topic": "http2",
+    "type": "out_of_scope",
+    "expected_sources": [],
+    "note": "tcp_udp.md와 https_tls.md가 전송 계층을 다루지만 HTTP/2 기능은 다루지 않는다"
+  },
+  {
+    "question": "결제 요청이 두 번 들어가는 사고를 어떻게 막나요?",
+    "topic": "http_idempotency",
+    "type": "paraphrase",
+    "reference": "결제나 주문처럼 중복이 치명적인 POST 요청에는 멱등성 키(Idempotency Key)를 함께 보낸다",
+    "expected_sources": [
+      "http_idempotency.md"
+    ],
+    "key_evidence": "결제나 주문처럼 중복이 치명적인 POST 요청에는 멱등성 키(Idempotency Key)를 함께 보낸다"
+  },
+  {
+    "question": "재고가 실제보다 많이 남아 있는 것으로 집계됩니다. 원인이 무엇일까요?",
+    "topic": "db_lock",
+    "type": "paraphrase",
+    "reference": "재고가 10개인 상품을 두 요청이 동시에 읽고 각각 1을 빼서 저장하면, 둘 다 9를 쓰게 되어",
+    "expected_sources": [
+      "db_lock.md"
+    ],
+    "key_evidence": "재고가 10개인 상품을 두 요청이 동시에 읽고 각각 1을 빼서 저장하면, 둘 다 9를 쓰게 되어"
+  },
+  {
+    "question": "인덱스를 추가했는데도 쿼리가 빨라지지 않습니다.",
+    "topic": "db_execution_plan",
+    "type": "paraphrase",
+    "reference": "인덱스를 추가했다고 해서 실제로 사용된다는 보장은 없기 때문이다",
+    "expected_sources": [
+      "db_execution_plan.md",
+      "postgresql_index.md"
+    ],
+    "key_evidence": "인덱스를 추가했다고 해서 실제로 사용된다는 보장은 없기 때문이다"
+  },
+  {
+    "question": "게시글 목록을 여는데 쿼리 로그에 같은 쿼리가 수십 번 찍힙니다.",
+    "topic": "db_n_plus_one",
+    "type": "paraphrase",
+    "reference": "실제로는 데이터 건수만큼 데이터베이스 왕복이 일어난다",
+    "expected_sources": [
+      "db_n_plus_one.md"
+    ],
+    "key_evidence": "실제로는 데이터 건수만큼 데이터베이스 왕복이 일어난다"
+  },
+  {
+    "question": "로그인은 됐는데 특정 페이지에서 접근이 막힙니다. 어떤 코드를 돌려줘야 하나요?",
+    "topic": "http_status_code",
+    "type": "paraphrase",
+    "reference": "403은 인증은 됐지만 권한이 없는 상태로",
+    "expected_sources": [
+      "http_status_code.md"
+    ],
+    "key_evidence": "403은 인증은 됐지만 권한이 없는 상태로"
+  },
+  {
+    "question": "조회를 빠르게 하려고 테이블을 합쳤더니 값이 서로 어긋납니다.",
+    "topic": "db_normalization",
+    "type": "paraphrase",
+    "reference": "중복된 값을 갱신할 때 모든 위치를 함께 고쳐야 하고, 한 곳이라도 놓치면 데이터가 어긋난다",
+    "expected_sources": [
+      "db_normalization.md"
+    ],
+    "key_evidence": "중복된 값을 갱신할 때 모든 위치를 함께 고쳐야 하고, 한 곳이라도 놓치면 데이터가 어긋난다"
+  },
+  {
+    "question": "브라우저가 이 사이트는 안전하지 않다고 경고를 띄웁니다.",
+    "topic": "https_tls",
+    "type": "paraphrase",
+    "reference": "스스로 서명한 인증서를 쓰면 브라우저가 경고를 띄우는 이유가 이것이다",
+    "expected_sources": [
+      "https_tls.md"
+    ],
+    "key_evidence": "스스로 서명한 인증서를 쓰면 브라우저가 경고를 띄우는 이유가 이것이다"
+  },
+  {
+    "question": "페이지가 하얗게 보이다가 뒤늦게 그려집니다. 무엇을 확인해야 하나요?",
+    "topic": "browser_rendering",
+    "type": "paraphrase",
+    "reference": "스크립트를 만나면 브라우저는 HTML 파싱을 중단하고 스크립트를 내려받아 실행한 뒤 재개한다",
+    "expected_sources": [
+      "browser_rendering.md"
+    ],
+    "key_evidence": "스크립트를 만나면 브라우저는 HTML 파싱을 중단하고 스크립트를 내려받아 실행한 뒤 재개한다"
   }
 ]

@@ -11,7 +11,7 @@ from ragas.metrics import context_precision, faithfulness
 from rag.config import GEMINI_MODEL
 from rag.embeddings import get_embeddings
 from rag.vectorstore import get_interview_kb_retriever
-from scripts.eval_budget import trim_by_args
+from scripts.eval_budget import in_scope_only, trim_by_args
 
 EVAL_SET_PATH = Path("tests/fixtures/retrieval_eval_set.json")
 
@@ -22,7 +22,7 @@ def format_docs(docs):
 
 def main():
     eval_set = json.loads(EVAL_SET_PATH.read_text(encoding="utf-8"))
-    eval_set = trim_by_args(eval_set)
+    eval_set = trim_by_args(in_scope_only(eval_set))
 
     evaluator_llm = LangchainLLMWrapper(ChatGoogleGenerativeAI(model=GEMINI_MODEL))
     evaluator_embeddings = LangchainEmbeddingsWrapper(get_embeddings())

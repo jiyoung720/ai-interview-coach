@@ -9,6 +9,15 @@ import argparse
 CALLS_PER_ITEM = 6  # 생성 1 + Faithfulness 2 + Context Precision 3(k=3)
 
 
+def in_scope_only(cases: list) -> list:
+    """범위 밖 문항(Phase 17)을 걸러낸다.
+
+    이들은 정답 문서가 없어 Top-1 정확도를 계산할 수 없고 reference도 없어
+    RAGAS를 돌릴 수 없다. 판정은 scripts/calibrate_scope_threshold.py에서 따로 measure한다.
+    """
+    return [c for c in cases if c.get("type") != "out_of_scope"]
+
+
 def build_parser() -> argparse.ArgumentParser:
     """--limit/--yes 를 단 파서. 다른 인자가 필요한 스크립트는 여기에 add_argument 해서 쓴다."""
     parser = argparse.ArgumentParser()

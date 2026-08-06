@@ -1,0 +1,457 @@
+[
+  {
+    "question": "JWT란 무엇인가?",
+    "topic": "jwt",
+    "out_of_scope": false,
+    "distance": 0.22904670238494873,
+    "top_source": "jwt.md"
+  },
+  {
+    "question": "JWT와 OAuth는 어떻게 다른가요?",
+    "topic": "oauth",
+    "out_of_scope": false,
+    "distance": 0.18524384498596191,
+    "top_source": "oauth.md"
+  },
+  {
+    "question": "OAuth 2.0의 Authorization Code Grant 흐름을 설명해주세요.",
+    "topic": "oauth",
+    "out_of_scope": false,
+    "distance": 0.23768651485443115,
+    "top_source": "oauth.md"
+  },
+  {
+    "question": "세션 기반 인증과 토큰 기반 인증의 차이는 무엇인가요?",
+    "topic": "session_vs_token",
+    "out_of_scope": false,
+    "distance": 0.1824573278427124,
+    "top_source": "session_vs_token.md"
+  },
+  {
+    "question": "JWT를 발급한 서버가 로그아웃 처리를 어떻게 할 수 있나요?",
+    "topic": "jwt_logout_invalidation",
+    "out_of_scope": false,
+    "distance": 0.1949537992477417,
+    "top_source": "jwt_logout_invalidation.md"
+  },
+  {
+    "question": "FastAPI에서 비동기 처리가 왜 유리한가요?",
+    "topic": "fastapi",
+    "out_of_scope": false,
+    "distance": 0.2220320701599121,
+    "top_source": "fastapi.md"
+  },
+  {
+    "question": "비동기 처리와 멀티스레딩은 같은 개념인가요?",
+    "topic": "async_sync",
+    "out_of_scope": false,
+    "distance": 0.22696185111999512,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "I/O 바운드 작업과 CPU 바운드 작업에서 비동기 처리의 효과 차이는 무엇인가요?",
+    "topic": "async_sync",
+    "out_of_scope": false,
+    "distance": 0.16556024551391602,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "FastAPI의 Dependency Injection은 어떤 상황에서 활용하나요?",
+    "topic": "fastapi",
+    "out_of_scope": false,
+    "distance": 0.2674497365951538,
+    "top_source": "fastapi.md"
+  },
+  {
+    "question": "Spring의 의존성 주입(DI) 방식은 FastAPI와 어떻게 비교되나요?",
+    "topic": "spring_di",
+    "out_of_scope": false,
+    "distance": 0.187111496925354,
+    "top_source": "spring_di.md"
+  },
+  {
+    "question": "Spring Bean의 기본 스코프는 무엇인가요?",
+    "topic": "spring_bean_scope",
+    "out_of_scope": false,
+    "distance": 0.2250502109527588,
+    "top_source": "spring_bean_scope.md"
+  },
+  {
+    "question": "PostgreSQL에서 인덱스가 쓰기 성능에 미치는 영향은 무엇인가요?",
+    "topic": "postgresql_index",
+    "out_of_scope": false,
+    "distance": 0.2401827573776245,
+    "top_source": "postgresql_index.md"
+  },
+  {
+    "question": "트랜잭션의 ACID 속성은 무엇인가요?",
+    "topic": "transaction",
+    "out_of_scope": false,
+    "distance": 0.21510887145996094,
+    "top_source": "transaction.md"
+  },
+  {
+    "question": "Docker 컨테이너와 가상머신의 차이는 무엇인가요?",
+    "topic": "docker",
+    "out_of_scope": false,
+    "distance": 0.2239817976951599,
+    "top_source": "docker.md"
+  },
+  {
+    "question": "Dockerfile의 레이어 캐싱은 어떻게 동작하나요?",
+    "topic": "docker",
+    "out_of_scope": false,
+    "distance": 0.27063971757888794,
+    "top_source": "docker.md"
+  },
+  {
+    "question": "HTTP 401과 403 상태 코드의 차이는 무엇인가요?",
+    "topic": "http_status_code",
+    "out_of_scope": false,
+    "distance": 0.1996999979019165,
+    "top_source": "http_status_code.md"
+  },
+  {
+    "question": "JWT를 HTTP 요청에 실어 보낼 때 어떤 헤더를 사용하나요?",
+    "topic": "authorization_header",
+    "out_of_scope": false,
+    "distance": 0.21224617958068848,
+    "top_source": "authorization_header.md"
+  },
+  {
+    "question": "캐시 무효화는 왜 어려운 문제로 여겨지나요?",
+    "topic": "caching",
+    "out_of_scope": false,
+    "distance": 0.25696301460266113,
+    "top_source": "caching.md"
+  },
+  {
+    "question": "JWT 블랙리스트 관리에 어떤 저장소가 흔히 사용되나요?",
+    "topic": "caching",
+    "out_of_scope": false,
+    "distance": 0.22942960262298584,
+    "top_source": "jwt.md"
+  },
+  {
+    "question": "JWT를 쿠키에 저장하면 CORS 설정에서 무엇을 신경 써야 하나요?",
+    "topic": "cors",
+    "out_of_scope": false,
+    "distance": 0.17430239915847778,
+    "top_source": "cors.md"
+  },
+  {
+    "question": "정규화를 하면 어떤 문제를 막을 수 있나요?",
+    "topic": "db_normalization",
+    "out_of_scope": false,
+    "distance": 0.24273407459259033,
+    "top_source": "db_normalization.md"
+  },
+  {
+    "question": "반정규화는 언제 적용하는 것이 좋은가요?",
+    "topic": "db_normalization",
+    "out_of_scope": false,
+    "distance": 0.18612372875213623,
+    "top_source": "db_normalization.md"
+  },
+  {
+    "question": "N+1 문제가 무엇이고 왜 발생하나요?",
+    "topic": "db_n_plus_one",
+    "out_of_scope": false,
+    "distance": 0.21262961626052856,
+    "top_source": "db_n_plus_one.md"
+  },
+  {
+    "question": "지연 로딩을 모두 즉시 로딩으로 바꾸면 되지 않나요?",
+    "topic": "db_n_plus_one",
+    "out_of_scope": false,
+    "distance": 0.24631106853485107,
+    "top_source": "db_n_plus_one.md"
+  },
+  {
+    "question": "낙관적 락과 비관적 락은 어떤 기준으로 선택하나요?",
+    "topic": "db_lock",
+    "out_of_scope": false,
+    "distance": 0.1722344160079956,
+    "top_source": "db_lock.md"
+  },
+  {
+    "question": "동시에 같은 데이터를 수정하면 어떤 문제가 생기나요?",
+    "topic": "db_lock",
+    "out_of_scope": false,
+    "distance": 0.24538469314575195,
+    "top_source": "db_lock.md"
+  },
+  {
+    "question": "실행 계획에서 Seq Scan이 나오면 무엇을 확인해야 하나요?",
+    "topic": "db_execution_plan",
+    "out_of_scope": false,
+    "distance": 0.18807023763656616,
+    "top_source": "db_execution_plan.md"
+  },
+  {
+    "question": "TCP와 UDP는 어떤 차이가 있나요?",
+    "topic": "tcp_udp",
+    "out_of_scope": false,
+    "distance": 0.21695148944854736,
+    "top_source": "tcp_udp.md"
+  },
+  {
+    "question": "HTTPS는 HTTP와 비교해 무엇을 보장하나요?",
+    "topic": "https_tls",
+    "out_of_scope": false,
+    "distance": 0.24494361877441406,
+    "top_source": "https_tls.md"
+  },
+  {
+    "question": "브라우저에 URL을 입력하면 어떤 순서로 처리되나요?",
+    "topic": "browser_rendering",
+    "out_of_scope": false,
+    "distance": 0.17403483390808105,
+    "top_source": "browser_rendering.md"
+  },
+  {
+    "question": "Kubernetes에서 Pod의 오토스케일링은 어떻게 설정하나요?",
+    "topic": "kubernetes",
+    "out_of_scope": true,
+    "distance": 0.4023759365081787,
+    "top_source": "docker.md"
+  },
+  {
+    "question": "Deployment와 StatefulSet은 어떤 기준으로 나눠 쓰나요?",
+    "topic": "kubernetes",
+    "out_of_scope": true,
+    "distance": 0.38951659202575684,
+    "top_source": "rest_api_design.md"
+  },
+  {
+    "question": "Kafka 컨슈머 그룹의 리밸런싱은 언제 일어나나요?",
+    "topic": "kafka",
+    "out_of_scope": true,
+    "distance": 0.4045497179031372,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "메시지 큐를 도입하면 어떤 문제를 해결할 수 있나요?",
+    "topic": "kafka",
+    "out_of_scope": true,
+    "distance": 0.360112726688385,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "Redis의 RDB와 AOF 영속성 방식은 어떻게 다른가요?",
+    "topic": "redis_internal",
+    "out_of_scope": true,
+    "distance": 0.378021240234375,
+    "top_source": "caching.md"
+  },
+  {
+    "question": "Elasticsearch의 역색인 구조는 어떻게 동작하나요?",
+    "topic": "elasticsearch",
+    "out_of_scope": true,
+    "distance": 0.3651922941207886,
+    "top_source": "postgresql_index.md"
+  },
+  {
+    "question": "GraphQL이 REST에 비해 갖는 장점은 무엇인가요?",
+    "topic": "graphql",
+    "out_of_scope": true,
+    "distance": 0.3237648606300354,
+    "top_source": "rest_api_design.md"
+  },
+  {
+    "question": "gRPC에서 Protocol Buffers를 쓰는 이유가 무엇인가요?",
+    "topic": "grpc",
+    "out_of_scope": true,
+    "distance": 0.40751147270202637,
+    "top_source": "tcp_udp.md"
+  },
+  {
+    "question": "GitHub Actions 워크플로에서 빌드 캐시를 어떻게 재사용하나요?",
+    "topic": "cicd",
+    "out_of_scope": true,
+    "distance": 0.3695659041404724,
+    "top_source": "caching.md"
+  },
+  {
+    "question": "S3의 스토리지 클래스는 어떤 기준으로 선택하나요?",
+    "topic": "aws",
+    "out_of_scope": true,
+    "distance": 0.4065679907798767,
+    "top_source": "spring_layered_architecture.md"
+  },
+  {
+    "question": "MSA에서 서킷 브레이커 패턴은 왜 필요한가요?",
+    "topic": "msa",
+    "out_of_scope": true,
+    "distance": 0.3880128264427185,
+    "top_source": "http_idempotency.md"
+  },
+  {
+    "question": "WebSocket과 HTTP 폴링은 어떤 차이가 있나요?",
+    "topic": "websocket",
+    "out_of_scope": true,
+    "distance": 0.3651539087295532,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "MongoDB에서 스키마를 어떻게 설계하나요?",
+    "topic": "nosql",
+    "out_of_scope": true,
+    "distance": 0.3866232633590698,
+    "top_source": "db_normalization.md"
+  },
+  {
+    "question": "데이터베이스 샤딩은 어떤 기준으로 나누나요?",
+    "topic": "db_scaling",
+    "out_of_scope": true,
+    "distance": 0.3501657247543335,
+    "top_source": "db_normalization.md"
+  },
+  {
+    "question": "git rebase와 merge는 어떤 상황에 각각 쓰나요?",
+    "topic": "git",
+    "out_of_scope": true,
+    "distance": 0.391080379486084,
+    "top_source": "http_method.md"
+  },
+  {
+    "question": "단위 테스트에서 모킹은 언제 사용하나요?",
+    "topic": "testing",
+    "out_of_scope": true,
+    "distance": 0.41207945346832275,
+    "top_source": "caching.md"
+  },
+  {
+    "question": "로드 밸런서의 라운드 로빈과 최소 연결 방식은 어떻게 다른가요?",
+    "topic": "load_balancing",
+    "out_of_scope": true,
+    "distance": 0.39008235931396484,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "본인의 장점과 단점을 말씀해 주세요.",
+    "topic": "behavioral",
+    "out_of_scope": true,
+    "distance": 0.39579689502716064,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "팀 프로젝트에서 갈등이 있었을 때 어떻게 해결하셨나요?",
+    "topic": "behavioral",
+    "out_of_scope": true,
+    "distance": 0.41080474853515625,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "JPA의 영속성 컨텍스트에서 더티 체킹은 어떻게 동작하나요?",
+    "topic": "jpa",
+    "out_of_scope": true,
+    "distance": 0.40219348669052124,
+    "top_source": "db_lock.md"
+  },
+  {
+    "question": "SQL 인젝션을 막으려면 어떻게 해야 하나요?",
+    "topic": "security_injection",
+    "out_of_scope": true,
+    "distance": 0.3817228674888611,
+    "top_source": "jwt.md"
+  },
+  {
+    "question": "프로세스와 스레드의 차이는 무엇인가요?",
+    "topic": "os_process",
+    "out_of_scope": true,
+    "distance": 0.32050251960754395,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "HTTP 캐시 헤더 Cache-Control은 어떻게 설정하나요?",
+    "topic": "http_cache",
+    "out_of_scope": true,
+    "distance": 0.33520495891571045,
+    "top_source": "caching.md"
+  },
+  {
+    "question": "읽기 전용 복제본을 두면 어떤 점이 좋아지나요?",
+    "topic": "db_replication",
+    "out_of_scope": true,
+    "distance": 0.3571920394897461,
+    "top_source": "db_lock.md"
+  },
+  {
+    "question": "Spring AOP는 어떤 문제를 해결하나요?",
+    "topic": "spring_aop",
+    "out_of_scope": true,
+    "distance": 0.3449280261993408,
+    "top_source": "spring_di.md"
+  },
+  {
+    "question": "커넥션 풀의 크기는 어떤 기준으로 정하나요?",
+    "topic": "connection_pool",
+    "out_of_scope": true,
+    "distance": 0.40176141262054443,
+    "top_source": "tcp_udp.md"
+  },
+  {
+    "question": "HTTP/2의 멀티플렉싱은 무엇인가요?",
+    "topic": "http2",
+    "out_of_scope": true,
+    "distance": 0.39068520069122314,
+    "top_source": "async_sync.md"
+  },
+  {
+    "question": "결제 요청이 두 번 들어가는 사고를 어떻게 막나요?",
+    "topic": "http_idempotency",
+    "out_of_scope": false,
+    "distance": 0.31128495931625366,
+    "top_source": "http_idempotency.md"
+  },
+  {
+    "question": "재고가 실제보다 많이 남아 있는 것으로 집계됩니다. 원인이 무엇일까요?",
+    "topic": "db_lock",
+    "out_of_scope": false,
+    "distance": 0.37342989444732666,
+    "top_source": "db_lock.md"
+  },
+  {
+    "question": "인덱스를 추가했는데도 쿼리가 빨라지지 않습니다.",
+    "topic": "db_execution_plan",
+    "out_of_scope": false,
+    "distance": 0.25380611419677734,
+    "top_source": "db_execution_plan.md"
+  },
+  {
+    "question": "게시글 목록을 여는데 쿼리 로그에 같은 쿼리가 수십 번 찍힙니다.",
+    "topic": "db_n_plus_one",
+    "out_of_scope": false,
+    "distance": 0.2859252095222473,
+    "top_source": "db_n_plus_one.md"
+  },
+  {
+    "question": "로그인은 됐는데 특정 페이지에서 접근이 막힙니다. 어떤 코드를 돌려줘야 하나요?",
+    "topic": "http_status_code",
+    "out_of_scope": false,
+    "distance": 0.2907177805900574,
+    "top_source": "http_status_code.md"
+  },
+  {
+    "question": "조회를 빠르게 하려고 테이블을 합쳤더니 값이 서로 어긋납니다.",
+    "topic": "db_normalization",
+    "out_of_scope": false,
+    "distance": 0.27191972732543945,
+    "top_source": "db_normalization.md"
+  },
+  {
+    "question": "브라우저가 이 사이트는 안전하지 않다고 경고를 띄웁니다.",
+    "topic": "https_tls",
+    "out_of_scope": false,
+    "distance": 0.2616617679595947,
+    "top_source": "https_tls.md"
+  },
+  {
+    "question": "페이지가 하얗게 보이다가 뒤늦게 그려집니다. 무엇을 확인해야 하나요?",
+    "topic": "browser_rendering",
+    "out_of_scope": false,
+    "distance": 0.3090907335281372,
+    "top_source": "browser_rendering.md"
+  }
+]

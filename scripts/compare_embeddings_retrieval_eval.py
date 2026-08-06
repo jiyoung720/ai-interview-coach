@@ -9,7 +9,7 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import context_precision, faithfulness
 
 from rag.config import GEMINI_MODEL
-from scripts.eval_budget import trim_by_args
+from scripts.eval_budget import in_scope_only, trim_by_args
 from rag.embeddings import get_embeddings
 from rag.vectorstore import get_interview_kb_gemini_retriever, get_interview_kb_sroberta_retriever
 
@@ -82,7 +82,7 @@ def evaluate_retriever(name, retriever, eval_set, evaluator_llm, evaluator_embed
 def main():
     eval_set = json.loads(EVAL_SET_PATH.read_text(encoding="utf-8"))
 
-    eval_set = trim_by_args(eval_set, multiplier=2)  # 임베딩 2종을 각각 도므로 호출량이 2배
+    eval_set = trim_by_args(in_scope_only(eval_set), multiplier=2)  # 임베딩 2종을 각각 도므로 호출량이 2배
 
     evaluator_llm = LangchainLLMWrapper(ChatGoogleGenerativeAI(model=GEMINI_MODEL))
     evaluator_embeddings = LangchainEmbeddingsWrapper(get_embeddings())
