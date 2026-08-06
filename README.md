@@ -74,34 +74,35 @@ flowchart LR
     A1[Retrieval<br/>User Docs] --> A2[Generation<br/>Gemini] --> A3[면접 질문 5개]
 ```
 
-**Chain B — 답변 평가 (Agent v3 + 멀티턴 루프)**
+**Chain B — 답변 평가와 코칭 분기**
 
 ```mermaid
 flowchart TB
-    B1[Retrieval<br/>Interview KB] --> BS{근거가<br/>충분한가?}
+    B1[Retrieval<br/>Interview KB] --> BS{근거 충분?}
     BS -->|"거리 ≥ 0.311"| BX[Out of Scope<br/>채점 보류]
-    BS -->|"근거 있음"| B2[Judge<br/>Gemini]
-    B2 --> BD{technical_score}
+    BS -->|"충분"| B2[Judge] --> BD{점수}
+    BD -->|"0~3"| B6[Fundamentals<br/>개념 설명]
+    BD -->|"4~6"| B3[Learning Tip<br/>→ Followup 꼬리질문]
+    BD -->|"7~10"| B7[Advanced<br/>심화 질문]
+```
 
-    BD -->|"0~3점"| B6[Fundamentals<br/>개념 설명]
-    BD -->|"4~6점"| B3[Learning Tip<br/>약점 진단]
-    BD -->|"7~10점"| B7[Advanced<br/>심화 질문]
-    B3 -->|"topic 전달"| B5[Followup<br/>꼬리질문]
+**멀티턴 루프 — LangGraph를 쓰는 근거**
 
-    BX --> B4[End]
-    B6 --> B4
-    B5 --> BC{턴이 남았나?}
-    B7 --> BC
-    BC -->|"종료"| B4
-    BC -->|"계속"| B8[Await Answer<br/>interrupt로 대기]
-    B8 -.->|"사용자 재답변<br/>Command resume"| B1
+```mermaid
+flowchart LR
+    C1[코칭 완료] --> C2{턴이 남았나?}
+    C2 -->|"종료"| C3[End]
+    C2 -->|"계속"| C4[Await Answer<br/>interrupt]
+    C4 -.->|"Command resume"| C5[Retrieval부터 다시]
 ```
 
 **첫 분기는 채점보다 앞에 있습니다.** 검색은 `k=3`이라 KB에 근거가 없어도 항상 문서 3개를 돌려주기 때문에, 걸러내지 않으면 엉뚱한 문서로 점수가 매겨집니다. 1순위 거리가 임계값을 넘으면 Judge를 아예 부르지 않고 보류합니다.
 
 **분기 기준은 "갈래를 늘리자"가 아니라 "점수대마다 필요한 코칭이 다르다"였습니다.** 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무것도 실행되지 않아 한쪽 경로가 비어 있었습니다.
 
-**점선 사이클이 LangGraph를 쓰는 근거입니다.** 조건부 분기와 순차 실행까지는 LCEL의 `RunnableBranch`로도 됩니다. 하지만 코칭받은 사용자가 다시 답하고 그 답을 또 채점하려면 실행이 되돌아가야 하고, 중간에 사람의 입력을 기다리며 멈췄다 재개해야 합니다(`interrupt` / `Command(resume=...)`). 이건 LCEL로 만들 수 없습니다. 0~3점만 루프에서 빠지는데, 개념을 모르는 사람에게 같은 주제를 다시 묻는 건 코칭이 아니라 압박이라고 봤기 때문에 설명을 주고 세션을 마칩니다.
+**루프로 이어지는 것은 4~6점과 7~10점 경로뿐입니다.** 두 경로만 다음에 물을 질문(꼬리질문·심화질문)을 만들기 때문입니다. 0~3점은 개념 설명을 주고 세션을 마칩니다. 개념을 모르는 사람에게 같은 주제를 다시 묻는 건 코칭이 아니라 압박이라고 봤기 때문입니다. 근거가 없어 보류된 경우도 채점 자체가 없었으므로 루프를 타지 않고, 이어갈지는 사용자가 정합니다.
+
+**두 번째 다이어그램의 점선이 LangGraph를 쓰는 근거입니다.** 조건부 분기와 순차 실행까지는 LCEL의 `RunnableBranch`로도 됩니다. 하지만 코칭받은 사용자가 다시 답하고 그 답을 또 채점하려면 실행이 되돌아가야 하고, 중간에 사람의 입력을 기다리며 멈췄다 재개해야 합니다(`interrupt` / `Command(resume=...)`). 이건 LCEL로 만들 수 없습니다.
 
 두 체인 모두 LCEL로 먼저 구현한 뒤, LangGraph StateGraph로 마이그레이션했습니다. Retrieval과 Judge/Generation을 별도 Node로 나눈 덕분에 문제 발생 시 어느 단계인지 바로 특정할 수 있고, 평가 점수에 따른 조건부 분기(Agent)도 Node 단위로 추가할 수 있었습니다. 기존 LCEL 코드(`rag/chains.py`)는 지우지 않고 보존해 마이그레이션 과정 자체를 코드로 남겼습니다.
 
