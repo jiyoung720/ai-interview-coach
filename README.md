@@ -100,11 +100,11 @@ flowchart TB
 
 **작은 표본에서 내린 결론은 뒤집힌다**
 
-임베딩 비교에서 5문항일 때는 Gemini Embedding이 우세했는데, 20문항으로 늘리자 `ko-sroberta-multitask`가 Top-1 100%(20/20)로 앞섰습니다. 정반대 결론이었습니다. KB가 2개 문서일 때 Context Precision이 항상 1.0000이던 것도 같은 이유였습니다. 변별력이 없어서 만점이 나온 것을 성능이 좋다고 읽고 있었습니다.
+임베딩 비교에서 5문항일 때는 Gemini Embedding이 우세했는데, 20문항으로 늘리자 `ko-sroberta-multitask`가 Top-1 100%(20/20)로 앞섰습니다. 정반대 결론이었습니다. 그런데 KB를 18개에서 29개 문서로 늘리자 **또 한 번 뒤집혔습니다.** 30문항 기준으로 ko-sroberta 86.7%, Gemini 100%였습니다. KB가 2개 문서일 때 Context Precision이 항상 1.0000이던 것도 같은 이유였습니다. 변별력이 없어서 만점이 나온 것을 성능이 좋다고 읽고 있었습니다.
 
 **문서 분리 단위는 파일 크기가 아니라 "완결된 근거 단위"다**
 
-독립된 개념이 나열된 문서(`postgresql.md`, `spring.md`)는 하위 주제로 쪼갤수록 검색이 좋아졌지만, 비교형 문서(`session_vs_token.md`)는 반대로 정의·차이·확장성을 한 chunk에 묶어야 좋아졌습니다. "잘게 쪼갤수록 좋다"가 아니라 **질문 하나에 답할 근거가 흩어지지 않는 단위**가 기준이었습니다. 이 원칙으로 KB를 재구성해 Top-1 100%, Faithfulness 0.9708까지 올렸습니다.
+독립된 개념이 나열된 문서(`postgresql.md`, `spring.md`)는 하위 주제로 쪼갤수록 검색이 좋아졌지만, 비교형 문서(`session_vs_token.md`)는 반대로 정의·차이·확장성을 한 chunk에 묶어야 좋아졌습니다. "잘게 쪼갤수록 좋다"가 아니라 **질문 하나에 답할 근거가 흩어지지 않는 단위**가 기준이었습니다. 이 원칙으로 KB를 재구성해 당시 기준(KB 18개·20문항)으로 Top-1 100%, Faithfulness 0.9708까지 올렸습니다.
 
 **검색이 정확해도 생성이 컨텍스트를 벗어난다**
 
@@ -118,6 +118,14 @@ Judge Calibration이 52.9%로 나왔을 때 원인은 Judge가 아니라 **Calib
 
 분기 함수(`decide_next_step`)가 State만 받는 순수 함수라 0~10점 11개 값을 Gemini 호출 없이 전부 확인할 수 있었습니다. 멀티턴 사이클도 노드를 가짜로 갈아끼우고 **judge 호출 횟수를 세는 방식**으로 증명했습니다. 답변을 두 번 제출했을 때 judge가 2회 불렸다면 실행이 되돌아간 것이니까요. 덕분에 회귀가 가장 나기 쉬운 라우팅·상태 전이가 CI에서 매번 검증됩니다.
 
+**중간 지표가 올라도 최종 지표는 안 움직일 수 있다**
+
+임베딩을 바꿔 검색 Top-1을 86.7%에서 100%로 올렸는데, **채점 정확도는 91.7%에서 90.9%로 사실상 그대로였습니다.** Judge가 답변 자체를 보고 채점하기 때문입니다. Access/Refresh Token 질문에 엉뚱하게 `spring_layered_architecture.md`가 근거로 붙던 상황에서도 해당 케이스들은 전부 정확히 채점됐습니다. 그래도 교체를 유지한 이유는 점수가 아니라 **사용자에게 보이는 근거 출처** 때문입니다. 점수가 맞아도 "N+1 질문에 HTTP 상태 코드 문서 참고"라고 뜨면 신뢰가 무너집니다.
+
+**임베딩이 도메인 용어를 모르면 문서를 고쳐도 소용없다**
+
+"멱등성" 질문이 계속 엉뚱한 문서로 새서 전용 문서를 만들고 제목에 동의어까지 넣었는데 **거리가 0.6969에서 1도 안 움직였습니다.** 단어 쌍을 직접 재보니 `ko-sroberta`에서 "멱등성"과 그 정의의 거리(0.1682)가 무관한 "비동기 처리"(0.4091)보다 **오히려 멀었습니다.** 그때까지 검색 문제는 전부 chunk 분리로 풀어왔는데, 문서를 어떻게 써도 해결되지 않는 종류가 있다는 것을 처음 만났습니다.
+
 **설계의 대가는 측정해야 알 수 있다**
 
 Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 겨냥하게 하려는 선택이었는데, 그 비용은 모르고 있었습니다. 배포 후 재보니 Gemini를 3회 호출하는 구간이 2회인 구간보다 4~6초 느렸습니다. 동시에 기준선(측정 당시 헬스체크였던 `GET /`)이 전체의 0.2% 미만이라 **병목이 서버 연산도 네트워크도 아닌 LLM 응답 대기**임이 드러났습니다. 따라서 인스턴스 사양 상향은 주된 개선 수단이 아니었습니다.
@@ -127,17 +135,18 @@ Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 
 - **Backend**: FastAPI
 - **패키지 관리**: uv
 - **Framework**: LangChain (LCEL) → LangGraph (StateGraph) 마이그레이션
-- **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 18개 문서 (retrieval unit 기준으로 재구성)
-- **Embedding**: `ko-sroberta-multitask` (기본), Gemini Embedding(`gemini-embedding-001`, 비교 실험용)
+- **Vector DB**: Chroma (`hnsw:space=cosine`), Interview KB 29개 문서 54 chunk (retrieval unit 기준으로 재구성)
+- **Embedding**: KB 검색은 Gemini Embedding(`gemini-embedding-001`), 업로드 문서 검색은 `ko-sroberta-multitask`(로컬). 두 인덱스를 나란히 유지해 비교 실험이 가능하다
 - **LLM**: Gemini 3.5 Flash (structured output)
-- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(v1 17개 / v2 44개), RAGAS Faithfulness(Calibration Set 기준 평균 0.4412), Retrieval 전용 평가셋(20문항: Top-1 100%·Faithfulness 0.9708·Context Precision 1.0000), Embedding 비교(20문항 기준: ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500, ko-sroberta 최종 채택)
+- **Evaluation**: Semantic Retrieval Test, Judge Calibration Set(v1 17개 / v2 44개), RAGAS Faithfulness(Calibration Set 기준 평균 0.4412), Retrieval 전용 평가셋(30문항: Top-1 100%·Faithfulness 0.9702·Context Precision 1.0000), Embedding 비교(KB 29개·30문항 기준: Gemini 100%/0.9702 > ko-sroberta 86.7%/0.8931. KB 18개·20문항 시점에는 결론이 반대였음)
 
 ## Project Outcomes
 
 **RAG 파이프라인**
 - LCEL로 먼저 구현한 뒤 LangGraph StateGraph로 마이그레이션. 기존 코드를 보존해 과정 자체를 남김
 - Retrieval / Judge / Generation을 독립 Node로 분리해 문제 발생 지점을 특정 가능하게 설계
-- 문서 분리 전략을 "완결된 근거 단위"로 재설계해 Top-1 100%·Faithfulness 0.9708 달성
+- 문서 분리 전략을 "완결된 근거 단위"로 재설계해 Top-1 100%·Faithfulness 0.9708 달성 (KB 18개·20문항 시점)
+- KB를 29개로 확장한 뒤 임베딩을 재비교해 Gemini Embedding으로 교체, 30문항 기준 Top-1 100%·Faithfulness 0.9702 확보
 
 **Agent와 멀티턴**
 - 점수 구간별 3분기(개념 설명 / 약점 코칭 / 심화 질문)로 확장해 모든 점수대에서 결과가 나오도록 개선
@@ -228,7 +237,7 @@ uv run uvicorn app.main:app --reload
 cp .env.example .env  # GEMINI_API_KEY 채우기
 docker compose up -d
 ```
-최초 기동 시 Interview KB가 자동으로 인덱싱되고(18개 문서, 29 chunk), 이후 재시작에서는 volume에 남아 있는 인덱스를 그대로 사용합니다. `chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
+최초 기동 시 Interview KB가 자동으로 인덱싱되고(29개 문서, 54 chunk), 이후 재시작에서는 volume에 남아 있는 인덱스를 그대로 사용합니다. `chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
 
 이미지는 CPU 전용 torch를 사용해 3.79GB입니다(amd64 기준 2.7GB). 기본 설정으로 빌드하면 배포 대상에 없는 GPU용 CUDA 스택이 3.5GB가량 포함되어 10.9GB가 되는데, 이를 Dockerfile 안에서만 걷어냈습니다. 로컬(macOS)과 Colab(GPU 사용) 환경은 영향을 받지 않도록 `pyproject.toml`은 수정하지 않았습니다.
 
