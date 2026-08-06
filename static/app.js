@@ -377,6 +377,8 @@ function showSummary() {
     body.appendChild(el("p", "진행된 턴이 없습니다."));
   } else {
     body.appendChild(summaryOverview(graded));
+    // 턴이 둘 이상일 때만 흐름이 의미를 갖는다
+    if (sessionTurns.length > 1) body.appendChild(summaryTrend());
     sessionTurns.forEach((t) => body.appendChild(summaryTurn(t)));
   }
 
@@ -407,6 +409,43 @@ function summaryOverview(graded) {
     <div class="summary-stat"><span class="summary-stat-label">완성도 평균</span><strong class="${scoreClass(Math.round(comp))}">${comp}</strong></div>
   `;
   return box;
+}
+
+// 턴별 점수를 한 줄로 늘어놓는다. 요약에서 가장 알고 싶은 것은 개별 점수가 아니라
+// "어느 턴에서 흔들렸고 회복했는가"인데, 상세 블록만 쌓으면 스크롤하며 기억해야 한다.
+// 탭이나 화살표로 한 턴씩 보여주는 방식을 쓰지 않은 이유도 같다. 비교가 사라진다
+function summaryTrend() {
+  const section = document.createElement("div");
+  const caption = el("p", "턴별 기술 / 완성도");
+  caption.className = "summary-trend-caption";
+  section.appendChild(caption);
+
+  const wrap = document.createElement("div");
+  wrap.className = "summary-trend";
+
+  sessionTurns.forEach((t, i) => {
+    if (i > 0) {
+      const sep = el("span", "›");
+      sep.className = "summary-trend-sep";
+      wrap.appendChild(sep);
+    }
+    const item = document.createElement("div");
+    item.className = "summary-trend-item";
+    const label = el("span", t.outOfScope ? "보류" : `턴 ${t.turn}`);
+    label.className = "summary-trend-label";
+    item.appendChild(label);
+
+    const score = el("span", t.evaluation
+      ? `${t.evaluation.technical_score} / ${t.evaluation.completeness_score}`
+      : "-");
+    score.className = "summary-trend-score " +
+      (t.evaluation ? scoreClass(t.evaluation.technical_score) : "none");
+    item.appendChild(score);
+    wrap.appendChild(item);
+  });
+
+  section.appendChild(wrap);
+  return section;
 }
 
 function summaryTurn(t) {

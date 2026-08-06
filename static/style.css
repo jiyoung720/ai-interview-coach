@@ -526,6 +526,36 @@ body.modal-open { overflow: hidden; }
 .summary-stat strong.mid  { color: var(--mid); }
 .summary-stat strong.bad  { color: var(--bad); }
 
+/* 턴별 점수 흐름. 스크롤하지 않고도 어느 턴에서 흔들렸는지 보이게 한다 */
+.summary-trend-caption {
+  margin: 0 0 6px;
+  font-size: 12px; font-weight: 600; color: var(--text-faint);
+}
+.summary-trend {
+  display: flex; align-items: stretch; gap: 6px;
+  margin-bottom: 18px; flex-wrap: wrap;
+}
+.summary-trend-item {
+  flex: 1; min-width: 82px;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.summary-trend-label { font-size: 11px; color: var(--text-faint); }
+.summary-trend-score {
+  font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.summary-trend-score.good { color: var(--good); }
+.summary-trend-score.mid  { color: var(--mid); }
+.summary-trend-score.bad  { color: var(--bad); }
+.summary-trend-score.none { color: var(--text-faint); }
+.summary-trend-sep {
+  align-self: center;
+  color: var(--text-faint); font-size: 15px;
+}
+
 .summary-turn {
   padding: 16px 0;
   border-top: 1px solid var(--border);
