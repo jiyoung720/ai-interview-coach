@@ -76,12 +76,17 @@ jobs:
           fi
 
       # 컨테이너가 실제로 기동해 헬스체크에 응답하는지 확인한다.
-      # KB 인덱싱은 임베딩 모델만 쓰고 Gemini를 호출하지 않으므로 API 키 없이 가능하다.
+      #
+      # KB 인덱싱은 건너뛴다(SKIP_KB_LOAD=1). 앱이 검색에 Gemini Embedding을 쓰게 된 뒤로
+      # 인덱싱에 유효한 API 키가 필요해졌는데, CI에 실제 키를 넣으면 푸시마다 과금되고
+      # 더미 키로는 400이 나 컨테이너가 죽는다. 여기서 확인하려는 것은 "이미지가 떠서
+      # 헬스체크에 응답하는가"이지 인덱싱 자체가 아니므로 분리했다.
+      # 인덱싱 대상이 앱의 검색 대상과 일치하는지는 tests/test_kb_indexing.py가 지킨다.
       - name: Smoke test
         run: |
-          docker run -d --name ci-app -p 8000:8000 -e GEMINI_API_KEY=dummy ai-interview-coach:ci
+          docker run -d --name ci-app -p 8000:8000 \
+            -e GEMINI_API_KEY=dummy -e SKIP_KB_LOAD=1 ai-interview-coach:ci
 
-          # 최초 기동 시 KB 인덱싱(29 chunk)이 돌기 때문에 여유를 둔다
           for i in $(seq 1 120); do
             if curl -sf http://127.0.0.1:8000/health > /dev/null; then
               echo "기동 확인 (${i}초)"
