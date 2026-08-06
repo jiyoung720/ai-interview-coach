@@ -19,7 +19,11 @@
 사용자가 업로드하는 이력서/포트폴리오. `POST /documents`로 업로드, Chunking → Embedding(`ko-sroberta-multitask`) → Chroma.
 
 ### Collection 2: Interview KB
-운영자가 직접 작성하는 고정 콘텐츠. 현재 **18개 문서**(jwt, jwt_logout_invalidation, fastapi, spring_di, spring_boot, spring_layered_architecture, spring_bean_scope, postgresql_index, transaction, docker, http, oauth, caching, session_vs_token, session_auth, token_auth, async_sync, cors). 11개에서 늘어난 것은 다루는 주제 수를 늘린 게 아니라, "문서 분리 단위 = 완결된 근거 단위(retrieval unit)" 원칙에 따라 기존 문서(postgresql, spring, session_vs_token, jwt)를 재구성한 결과다(Phase 6 참고). `scripts/load_kb.py`로 일회성 인덱싱.
+운영자가 직접 작성하는 고정 콘텐츠. 현재 **29개 문서(chunk 54개)**. 인증(jwt, jwt_logout_invalidation, oauth, token_auth, session_auth, session_vs_token, authorization_header), HTTP·웹(http_method, http_status_code, http_idempotency, rest_api_design, cors, https_tls, tcp_udp, browser_rendering), 서버(fastapi, async_sync, spring_di, spring_boot, spring_bean_scope, spring_layered_architecture, docker, caching), DB(transaction, postgresql_index, db_normalization, db_n_plus_one, db_lock, db_execution_plan).
+
+11 → 18개는 다루는 주제를 늘린 것이 아니라 "문서 분리 단위 = 완결된 근거 단위(retrieval unit)" 원칙에 따른 재구성이었고(Phase 6), 18 → 29개에서 처음으로 주제 자체가 늘었다(Phase 15).
+
+`scripts/load_kb.py`로 인덱싱한다. **적재 대상은 앱이 실제로 검색하는 컬렉션을 따라간다.** 컬렉션을 지목해두면 임베딩을 바꿀 때 배포된 컨테이너가 빈 인덱스를 검색하게 되고, 크래시 없이 모든 질문이 "근거 없음"으로 빠진다(Phase 17에서 실제로 겪음).
 
 ### Chain A: 질문 생성
 ```
@@ -29,10 +33,12 @@ LangGraph StateGraph로 구현. `rag/graph.py`의 `build_chain_a_graph()`.
 
 ### Chain B + Agent v3: 답변 평가
 ```
-Interview KB Retrieval Node → Judge Node → Decision(technical_score 구간)
-    → (0~3점)  Fundamentals Node        : 개념 자체를 설명
-    → (4~6점)  Learning Tip Node → Followup Node : 약점 보완 코칭 + 꼬리질문
-    → (7~10점) Advanced Question Node   : 심화 질문
+Interview KB Retrieval Node → decide_scope
+    → (근거 없음) Out of Scope Node     : 채점 보류. 점수를 만들지 않음
+    → (근거 있음) Judge Node → Decision(technical_score 구간)
+        → (0~3점)  Fundamentals Node        : 개념 자체를 설명
+        → (4~6점)  Learning Tip Node → Followup Node : 약점 보완 코칭 + 꼬리질문
+        → (7~10점) Advanced Question Node   : 심화 질문
 ```
 `rag/graph.py`의 `build_interview_agent_graph()`. 조건부 분기 함수는 `decide_next_step()` (구현 초기에는 `decide_followup()`으로 불렀으나, Learning Tip 추가 후 이름을 바꿈).
 
@@ -42,14 +48,17 @@ v2까지는 `technical_score < 5` 하나로만 갈렸고 점수가 높으면 아
 
 ### 멀티턴 세션 그래프 (Phase 11)
 ```
-START → Retrieval → Judge → Decision
-  ↑                            ├ (0~3점)  Fundamentals → END        (다음 질문이 없어 루프 제외)
+START → Retrieval → decide_scope
+  ↑                   ├ (근거 없음) Out of Scope → END   (점수를 만들지 않음. Phase 17)
+  │                   └ (근거 있음) Judge → Decision
+  │                            ├ (0~3점)  Fundamentals → END        (다음 질문이 없어 루프 제외)
   │                            ├ (4~6점)  Learning Tip → Followup ─┐
   │                            └ (7~10점) Advanced ────────────────┤
   │                                                        decide_continue
   │                                                          ├ "end"      → END
   └────────── await_answer (interrupt로 대기) ←──────────────┘
 ```
+`decide_scope`는 채점보다 먼저 판단한다. 1순위 문서와의 거리가 임계값(`SCOPE_DISTANCE_THRESHOLD`, 현재 0.311) 이상이면 Judge를 아예 부르지 않는다. 검색은 근거가 없어도 항상 상위 3개를 돌려주므로, 걸러내지 않으면 엉뚱한 문서를 근거로 점수가 매겨진다.
 `rag/graph.py`의 `build_interview_session_graph()`. 위 단발성 그래프와 **노드는 전부 공유하고 배선만 다르다.**
 
 `await_answer` 노드가 `interrupt()`를 호출하면 실행이 그 자리에서 멈추고 State가 checkpointer에 저장된다. 사용자의 답변을 `Command(resume=답변)`으로 넘겨 재개하면 `retrieval`로 이어져 새 질문으로 다시 채점한다. **이 사이클이 LangGraph를 쓰는 근거다.** 조건부 분기까지는 LCEL의 `RunnableBranch`로도 가능하지만, 되돌아가는 흐름과 실행 중간에 멈췄다 재개하는 동작은 LCEL로 표현할 수 없다.
@@ -97,6 +106,8 @@ class InterviewState(TypedDict, total=False):
 
 업로드 → 질문 생성 → **면접 진행**의 3단계이며, 마지막 단계는 `/interview/*`를 호출하는 대화형이다. 턴마다 질문·내 답변 말풍선과 점수 뱃지, 코칭이 타임라인에 쌓이고, 다음에 답할 질문은 입력창 바로 위에 고정 표시된다. 코칭 블록에서는 꼬리질문·심화질문 본문을 빼서 같은 질문이 두 군데 보이지 않도록 했다.
 
+세션이 끝나면 **요약 모달**이 뜬다. 상단에 턴별 점수 흐름(`턴1 8/7 › 턴2 6/5 › 턴3 10/9`)을 한 줄로 두어, 어느 턴에서 흔들렸는지 스크롤 없이 보이게 했다. 탭이나 화살표로 한 턴씩 넘기는 방식은 쓰지 않았다. 요약에서 가장 알고 싶은 것이 턴 간 비교인데 그 방식은 한 번에 하나만 보여줘 비교를 없앤다. 남은 턴을 채우지 않고 나갈 수 있도록 **면접 종료** 버튼을 두고, 되돌릴 수 없으므로 확인창을 거친다.
+
 ## 3. 검증 결과 요약
 
 | 항목 | 결과 | 의미 |
@@ -107,7 +118,10 @@ class InterviewState(TypedDict, total=False):
 | RAGAS Context Precision | 0.8000 (KB 11개 기준) | Retriever가 검색한 chunk 중 실제로 관련 있는 chunk가 상위에 오는 정도. KB가 2개 문서였을 때는 항상 1.0000이라 변별력이 없었고, 11개로 확장한 뒤에야 의미 있는 값이 나옴 |
 | Embedding 비교 (초기, 5문항) | Gemini Embedding이 헷갈리는 케이스 1건에서 더 안정적 | KB 11개 기준, 표본이 작아 일반화 보류로 남겨뒀던 초기 결과. 이후 20문항 재실행에서 결론이 뒤집힘(아래 행 참고) |
 | Retrieval 평가셋 (20문항, reference 기반) | Top-1 100% (20/20), Faithfulness 0.9708, Context Precision 1.0000 | KB를 "완결된 근거 단위" 기준으로 재구성(postgresql/spring 분리, session_vs_token 재구성)한 뒤의 최종 결과(ko-sroberta 기준). Judge Calibration Set의 Faithfulness(0.4412)와는 목적이 다른 별도 실험이며, reference(정답)를 기준으로 KB·Retrieval 자체의 품질을 측정 |
-| Embedding 비교 (최종, 20문항) | ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500 | Retrieval Unit 재설계 이후 20문항 평가셋으로 재실행. 5문항 표본(Gemini 우세)과 정반대 결론으로, 표본 확대가 결론을 뒤집은 사례다. ko-sroberta-multitask를 최종 임베딩으로 채택 |
+| Embedding 비교 (20문항, KB 18개) | ko-sroberta 100%/0.9708 > Gemini Embedding 95%/0.9500 | Retrieval Unit 재설계 이후 20문항 평가셋으로 재실행. 5문항 표본(Gemini 우세)과 정반대 결론으로, 표본 확대가 결론을 뒤집은 사례다. 이 시점에는 ko-sroberta를 채택했다 |
+| Embedding 비교 (30문항, KB 29개) | **Gemini 100%/0.9702 > ko-sroberta 86.7%/0.8931** | KB를 29개로 늘리자 결론이 **또 뒤집혔다.** ko-sroberta가 틀린 4문항은 전부 신규 DB 주제였고, "N+1 문제"를 `http_status_code.md`로 보내는 등 저빈도 전문용어를 벡터로 구분하지 못했다. KB가 작을 때는 주제가 서로 멀어 드러나지 않던 한계다. Gemini Embedding으로 교체 (Phase 15) |
+| 채점 정확도 (임베딩 교체 후) | 경로 정확도 90.9% | 검색이 13.3%p 좋아졌는데 채점 정확도는 노이즈 범위(5%p) 안에서 그대로였다. Judge가 답변 자체를 보고 채점하기 때문이다. **중간 지표와 최종 지표를 구분해서 말해야 한다** |
+| 범위 밖 판정 (65문항, group 5-fold) | 재현율 100%, 정밀도 93.8%, 범위 안 통과 93.3% | 임계값 0.311. 전체 데이터로는 오탐 1건이지만 fold 4에서 범위 안 통과가 75%로 떨어져, 일반화 성능이 더 낮음을 교차 검증이 드러냈다. 같은 주제를 표현만 바꾼 문항이 train/test에 걸치지 않도록 `topic` 단위로 묶어 나눴다 (Phase 17) |
 
 ## 4. 핵심 설계 변경 이력
 
@@ -134,7 +148,7 @@ class InterviewState(TypedDict, total=False):
 - **응답 지연을 코드로는 줄일 수 없음**: Phase 8 ⑤~⑦에서 시간·프로세스 상태·패킷 세 각도로 측정한 결과, 지연의 대부분이 Gemini 응답 대기였다. 서버 연산도 네트워크도 병목이 아니므로 인스턴스 사양을 올려도 개선되지 않는다. 줄이려면 설계를 바꿔야 한다(스트리밍 응답, 병렬 호출, 캐싱). 현재는 순차 설계의 대가를 알고 유지하는 상태
 - **HTTPS 미적용**: WireShark 캡처로 요청·응답 JSON이 평문으로 노출되는 것을 직접 확인했다. 데모 단계라 감수하고 있으나, 실사용자를 받으려면 TLS가 선행되어야 한다 (고도화 로드맵 Phase 14에서 해소 예정)
 
-Phase 1~12는 완료됐다. 앞으로의 계획은 아래 [고도화 로드맵](#고도화-로드맵-2026-07-29-멘토링-반영)의 Phase 13~16 참고.
+Phase 1~13, 15, 17은 완료됐다. 남은 것은 Phase 14(HTTPS·도메인, 도메인 미확보로 보류)와 Phase 16(채용공고 매칭)이다. 아래 [고도화 로드맵](#고도화-로드맵-2026-07-29-멘토링-반영) 참고.
 
 ---
 
@@ -300,7 +314,7 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 | 14 | HTTPS와 도메인 연결 | 1일 | 도메인 확보 | 예정 |
 | 15 | 지식베이스 출처 재설계 | 3~5일 | 저작권 검토 | **완료** |
 | 16 | 채용공고 매칭 | 1~2주 | Phase 13 | 예정 |
-| 17 | 범위 밖 질문 처리와 평가셋 강화 | 4~6일 | Phase 15 | 진행 중 |
+| 17 | 범위 밖 질문 처리와 평가셋 강화 | 4~6일 | Phase 15 | **완료** |
 
 ### Phase 12: 채점 고도화 (완료, 2026-07-31)
 사용자가 "왜 이 점수인지" 납득하지 못한다는 지적에서 출발했다. 착수 시점에는 **채점 편차도 함께 줄어들 것**으로 봤으나, 그 기대는 측정으로 기각됐다.
@@ -402,7 +416,10 @@ v2까지는 `technical_score < 5` 하나로만 갈리고 점수가 높으면 아
 - **입력 방식은 URL이 아니라 텍스트 붙여넣기로 한다.** 사람인·잡코리아·원티드 등은 스크래핑을 기술적으로 차단하고 이용약관으로도 금지한다. 기능의 본질(공고와 이력서 매칭)은 그대로면서 구현이 단순해지고, 기존 `POST /documents` 구조를 재사용할 수 있다
 - 제품 관점에서 가장 차별화되는 기능이다. "이력서 기반 면접 질문"에서 **"이 회사에 지원하려면 무엇이 부족한가"** 로 나아가는 지점이라, 멘토가 말한 "판매할 수 있는 서비스"에 가장 가깝다
 
-### Phase 17: 범위 밖 질문 처리와 평가셋 강화
+### Phase 17: 범위 밖 질문 처리와 평가셋 강화 (완료, 2026-08-06)
+
+**결과 요약**: 평가셋 30 → 65문항 5유형, 임계값 `0.311` (group 5-fold 교차 검증: 재현율 100%, 정밀도 93.8%, 범위 안 통과 93.3%). `out_of_scope` 분기를 구현해 근거가 없으면 점수를 만들지 않는다. 과정과 이날 잡은 버그 세 개는 [실험 로그](experiment_log.md#2026-08-06-계속---근거가-없으면-채점하지-않는다-phase-17) 참고.
+
 
 Phase 15에서 드러난 두 가지 문제를 함께 다룬다. **평가셋이 다시 천장에 닿았고**(Top-1 100%, Context Precision 1.0000), **KB에 근거가 없어도 시스템이 항상 문서 3개를 돌려주고 그것으로 채점한다.**
 
