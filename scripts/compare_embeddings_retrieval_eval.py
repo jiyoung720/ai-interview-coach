@@ -9,8 +9,9 @@ from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import context_precision, faithfulness
 
 from rag.config import GEMINI_MODEL
+from scripts.eval_budget import trim_by_args
 from rag.embeddings import get_embeddings
-from rag.vectorstore import get_interview_kb_gemini_retriever, get_interview_kb_retriever
+from rag.vectorstore import get_interview_kb_gemini_retriever, get_interview_kb_sroberta_retriever
 
 EVAL_SET_PATH = Path("tests/fixtures/retrieval_eval_set.json")
 
@@ -81,18 +82,20 @@ def evaluate_retriever(name, retriever, eval_set, evaluator_llm, evaluator_embed
 def main():
     eval_set = json.loads(EVAL_SET_PATH.read_text(encoding="utf-8"))
 
+    eval_set = trim_by_args(eval_set, multiplier=2)  # 임베딩 2종을 각각 도므로 호출량이 2배
+
     evaluator_llm = LangchainLLMWrapper(ChatGoogleGenerativeAI(model=GEMINI_MODEL))
     evaluator_embeddings = LangchainEmbeddingsWrapper(get_embeddings())
 
     sroberta = evaluate_retriever(
-        "ko-sroberta-multitask", get_interview_kb_retriever(), eval_set, evaluator_llm, evaluator_embeddings
+        "ko-sroberta-multitask", get_interview_kb_sroberta_retriever(), eval_set, evaluator_llm, evaluator_embeddings
     )
     gemini = evaluate_retriever(
         "Gemini Embedding (gemini-embedding-001)", get_interview_kb_gemini_retriever(), eval_set, evaluator_llm, evaluator_embeddings
     )
 
     print(f"\n{'=' * 50}")
-    print("최종 비교 (Retrieval 평가셋 20문항 기준)")
+    print(f"최종 비교 (Retrieval 평가셋 {len(eval_set)}문항 기준)")
     print("=" * 50)
     print(f"{'':30} {'Top-1':>10} {'Faithfulness':>15} {'Context Precision':>20}")
     print(f"{'ko-sroberta-multitask':30} {sroberta['accuracy']:>9.1f}% {sroberta['faithfulness']:>15.4f} {sroberta['context_precision']:>20.4f}")
@@ -109,7 +112,7 @@ def main():
             print(f"  - {q}")
             print(f"    ko-sroberta={s1}  gemini={s2}")
     else:
-        print("\n두 임베딩의 top-1 source는 20문항 전부 동일했음.")
+        print(f"\n두 임베딩의 top-1 source는 {len(eval_set)}문항 전부 동일했음.")
 
 
 if __name__ == "__main__":

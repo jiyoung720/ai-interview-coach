@@ -10,7 +10,7 @@ from ragas.metrics import context_precision, faithfulness
 
 from rag.config import GEMINI_MODEL
 from rag.embeddings import get_embeddings
-from rag.vectorstore import get_interview_kb_gemini_retriever, get_interview_kb_retriever
+from rag.vectorstore import get_interview_kb_gemini_retriever, get_interview_kb_sroberta_retriever
 
 CALIBRATION_PATH = Path("tests/fixtures/calibration_set.json")
 
@@ -74,7 +74,7 @@ def main():
     evaluator_embeddings = LangchainEmbeddingsWrapper(get_embeddings())
 
     sroberta_f, sroberta_p = evaluate_retriever(
-        "ko-sroberta-multitask", get_interview_kb_retriever(), good_cases, evaluator_llm, evaluator_embeddings
+        "ko-sroberta-multitask", get_interview_kb_sroberta_retriever(), good_cases, evaluator_llm, evaluator_embeddings
     )
     gemini_f, gemini_p = evaluate_retriever(
         "Gemini Embedding (gemini-embedding-001)", get_interview_kb_gemini_retriever(), good_cases, evaluator_llm, evaluator_embeddings

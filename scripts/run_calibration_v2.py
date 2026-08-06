@@ -11,13 +11,13 @@ v1과 달라진 점:
     uv run python -m scripts.run_calibration_v2 tests/fixtures/calibration_set.json
 """
 
-import sys
 from collections import defaultdict
 from pathlib import Path
 
 import json
 
 from rag.graph import build_chain_b_graph
+from scripts.eval_budget import build_parser, trim_by_args
 from rag.graph_nodes import ADVANCED_THRESHOLD, FUNDAMENTALS_THRESHOLD
 
 DEFAULT_PATH = Path("tests/fixtures/calibration_set_v2.json")
@@ -45,8 +45,14 @@ def in_range(score: int, rng: list[int]) -> bool:
 
 
 def main() -> None:
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PATH
+    parser = build_parser()
+    parser.add_argument("path", nargs="?", default=str(DEFAULT_PATH), help="캘리브레이션 세트 경로")
+    args = parser.parse_args()
+
+    path = Path(args.path)
     cases = json.loads(path.read_text(encoding="utf-8"))
+    # 케이스당 채점 1회 + 코칭 노드 1회 정도라 RAGAS만큼 무겁지는 않다
+    cases = trim_by_args(cases, calls_per_item=2, args=args)
     graph = build_chain_b_graph()
 
     score_pass = 0

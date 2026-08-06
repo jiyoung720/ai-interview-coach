@@ -41,12 +41,12 @@ def get_interview_kb_vectorstore() -> Chroma:
     )
 
 
-def get_interview_kb_retriever(k: int = 3):
+def get_interview_kb_sroberta_retriever(k: int = 3):
     return get_interview_kb_vectorstore().as_retriever(search_kwargs={"k": k})
 
 
-# 아래는 임베딩 비교 실험 전용. 같은 KB를 Gemini 임베딩으로 인덱싱한 별도 컬렉션이라,
-# ko-sroberta 컬렉션과 완전히 독립적으로 두 임베딩을 나란히 비교할 수 있다.
+# 같은 KB를 Gemini 임베딩으로 인덱싱한 별도 컬렉션. ko-sroberta 컬렉션과 독립적이라
+# 두 임베딩을 나란히 비교할 수 있고, 앱이 쓰는 쪽을 바꿔도 다른 쪽 인덱스는 그대로 남는다.
 INTERVIEW_KB_GEMINI_COLLECTION = "interview_kb_gemini_embedding"
 
 
@@ -64,3 +64,16 @@ def get_interview_kb_gemini_vectorstore() -> Chroma:
 
 def get_interview_kb_gemini_retriever(k: int = 3):
     return get_interview_kb_gemini_vectorstore().as_retriever(search_kwargs={"k": k})
+
+
+# 앱이 실제로 쓰는 KB 검색기. 어느 임베딩을 쓸지는 여기 한 곳에서만 정한다.
+#
+# KB를 18개에서 29개로 늘린 뒤 30문항 평가에서 Gemini가 Top-1 100%, ko-sroberta가 86.7%였다.
+# ko-sroberta는 "멱등성", "N+1 문제" 같은 저빈도 전문용어를 벡터로 구분하지 못해
+# 무관한 문서를 1순위로 올렸다(768차원 vs 3072차원). KB가 작을 때는 주제가 서로 멀어
+# 드러나지 않던 한계다. 측정 근거는 docs/experiment_log.md 참고.
+#
+# 대신 검색마다 API 호출이 생기므로, 크레딧이 없으면 검색부터 막힌다.
+# 되돌리려면 이 함수만 sroberta 쪽으로 바꾸면 된다(양쪽 인덱스가 모두 남아 있다).
+def get_interview_kb_retriever(k: int = 3):
+    return get_interview_kb_gemini_retriever(k)
