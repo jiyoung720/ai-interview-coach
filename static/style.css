@@ -556,6 +556,16 @@ body.modal-open { overflow: hidden; }
   color: var(--text-faint); font-size: 15px;
 }
 
+/* 채점된 턴 묶음과 보류 묶음을 가르는 표지.
+   보류는 면접 기록이 아니라 "왜 채점하지 못했는지"에 대한 설명이라 따로 둔다 */
+.summary-held-heading {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text-faint);
+}
+.summary-held-heading + .summary-turn { border-top: none; padding-top: 8px; }
+
 .summary-turn {
   padding: 16px 0;
   border-top: 1px solid var(--border);

@@ -379,7 +379,19 @@ function showSummary() {
     body.appendChild(summaryOverview(graded));
     // 채점된 턴이 둘 이상일 때만 흐름이 의미를 갖는다
     if (graded.length > 1) body.appendChild(summaryTrend(graded));
-    sessionTurns.forEach((t) => body.appendChild(summaryTurn(t)));
+
+    // 채점된 턴을 먼저 보여주고 보류는 뒤로 모은다. 보류는 턴 번호를 올리지 않으므로
+    // 시간순으로 섞으면 "보류 - 턴 1 - 턴 2"처럼 번호 흐름이 끊겨 보인다
+    graded.forEach((t) => body.appendChild(summaryTurn(t)));
+
+    const held = sessionTurns.filter((t) => !t.evaluation);
+    if (held.length) {
+      const heading = el("p", "평가를 보류한 질문");
+      heading.className = "summary-held-heading";
+      body.appendChild(heading);
+      // 묶음 제목이 이미 보류임을 말하므로 항목마다 되풀이하지 않는다
+      held.forEach((t) => body.appendChild(summaryTurn(t, true)));
+    }
   }
 
   $("summary-modal").hidden = false;
@@ -448,17 +460,19 @@ function summaryTrend(graded) {
   return section;
 }
 
-function summaryTurn(t) {
+function summaryTurn(t, underHeldHeading = false) {
   const row = document.createElement("div");
   row.className = "summary-turn";
 
-  const head = document.createElement("div");
-  head.className = "summary-turn-head";
-  const no = el("span", t.outOfScope ? "평가 보류" : `턴 ${t.turn}`);
-  no.className = "turn-no";
-  head.appendChild(no);
-  if (t.evaluation) head.appendChild(scoreBadges(t.evaluation));
-  row.appendChild(head);
+  if (!underHeldHeading) {
+    const head = document.createElement("div");
+    head.className = "summary-turn-head";
+    const no = el("span", t.outOfScope ? "평가 보류" : `턴 ${t.turn}`);
+    no.className = "turn-no";
+    head.appendChild(no);
+    if (t.evaluation) head.appendChild(scoreBadges(t.evaluation));
+    row.appendChild(head);
+  }
 
   row.appendChild(summaryField("질문", t.question));
   row.appendChild(summaryField("내 답변", t.answer));
