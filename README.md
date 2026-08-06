@@ -67,26 +67,37 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 
 ## Architecture
 
+**Chain A — 질문 생성**
+
+```mermaid
+flowchart LR
+    A1[Retrieval<br/>User Docs] --> A2[Generation<br/>Gemini] --> A3[면접 질문 5개]
+```
+
+**Chain B — 답변 평가 (Agent v3 + 멀티턴 루프)**
+
 ```mermaid
 flowchart TB
-    subgraph ChainA["Chain A - 질문 생성"]
-        A1[Retrieval Node<br/>User Docs] --> A2[Generation Node<br/>Gemini Structured Output]
-    end
-    subgraph ChainB["Chain B + Agent v3 + 멀티턴 루프 - 답변 평가"]
-        B1[Retrieval Node<br/>Interview KB] --> B2[Judge Node<br/>Gemini Structured Output]
-        B2 --> BD{Decision<br/>technical_score?}
-        BD -->|"0~3점"| B6[Fundamentals Node<br/>개념 자체를 설명]
-        BD -->|"4~6점"| B3[Learning Tip Node<br/>약점 기반 학습 추천]
-        B3 -->|"topic 전달"| B5[Followup Node<br/>Learning Tip의 topic을<br/>이어받아 꼬리질문 생성]
-        BD -->|"7~10점"| B7[Advanced Question Node<br/>심화 질문 생성]
-        B6 --> B4[End]
-        B5 --> BC{"턴이 남았나?"}
-        B7 --> BC
-        BC -->|"종료"| B4
-        BC -->|"계속"| B8[Await Answer<br/>interrupt로 대기]
-        B8 -.->|"사용자 재답변<br/>Command resume"| B1
-    end
+    B1[Retrieval<br/>Interview KB] --> BS{근거가<br/>충분한가?}
+    BS -->|"거리 ≥ 0.311"| BX[Out of Scope<br/>채점 보류]
+    BS -->|"근거 있음"| B2[Judge<br/>Gemini]
+    B2 --> BD{technical_score}
+
+    BD -->|"0~3점"| B6[Fundamentals<br/>개념 설명]
+    BD -->|"4~6점"| B3[Learning Tip<br/>약점 진단]
+    BD -->|"7~10점"| B7[Advanced<br/>심화 질문]
+    B3 -->|"topic 전달"| B5[Followup<br/>꼬리질문]
+
+    BX --> B4[End]
+    B6 --> B4
+    B5 --> BC{턴이 남았나?}
+    B7 --> BC
+    BC -->|"종료"| B4
+    BC -->|"계속"| B8[Await Answer<br/>interrupt로 대기]
+    B8 -.->|"사용자 재답변<br/>Command resume"| B1
 ```
+
+**첫 분기는 채점보다 앞에 있습니다.** 검색은 `k=3`이라 KB에 근거가 없어도 항상 문서 3개를 돌려주기 때문에, 걸러내지 않으면 엉뚱한 문서로 점수가 매겨집니다. 1순위 거리가 임계값을 넘으면 Judge를 아예 부르지 않고 보류합니다.
 
 **분기 기준은 "갈래를 늘리자"가 아니라 "점수대마다 필요한 코칭이 다르다"였습니다.** 개념을 아예 모르는 사람(0~3점)에게 "이걸 공부하세요"라는 학습 팁은 도움이 되지 않아 개념 설명을 주고, 이미 정확히 답한 사람(7~10점)에게는 보완할 약점이 없으니 코칭 대신 더 깊은 질문을 던집니다. v2까지는 5점 이상이면 아무것도 실행되지 않아 한쪽 경로가 비어 있었습니다.
 
