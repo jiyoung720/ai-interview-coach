@@ -5,8 +5,15 @@ CI 러너에는 API 키가 없으므로, 키가 필요 없는 이 계층을 회�
 """
 import pytest
 
+from rag.config import SCOPE_DISTANCE_THRESHOLD
 from rag.graph import build_chain_a_graph, build_interview_agent_graph
-from rag.graph_nodes import ADVANCED_THRESHOLD, FUNDAMENTALS_THRESHOLD, decide_next_step
+from rag.graph_nodes import (
+    ADVANCED_THRESHOLD,
+    FUNDAMENTALS_THRESHOLD,
+    decide_next_step,
+    decide_scope,
+    out_of_scope_node,
+)
 from rag.schemas import EvaluationResult
 
 
@@ -67,11 +74,41 @@ def test_level은_정해진_세_값만_허용된다():
 def test_agent_그래프에_세_경로가_모두_연결되어_있다():
     graph = build_interview_agent_graph().get_graph()
     nodes = {n for n in graph.nodes if not n.startswith("__")}
-    assert nodes == {"retrieval", "judge", "fundamentals", "learning_tip", "followup", "advanced"}
+    assert nodes == {
+        "retrieval", "judge", "fundamentals", "learning_tip", "followup", "advanced", "out_of_scope",
+    }
 
     # judge에서 세 갈래로 갈라지는지 확인
     targets = {e.target for e in graph.edges if e.source == "judge"}
     assert targets == {"fundamentals", "learning_tip", "advanced"}
+
+
+def test_근거가_멀면_judge를_거치지_않는다():
+    # 검색은 근거가 없어도 항상 상위 3개를 돌려주므로, 거리로 걸러내지 않으면
+    # 엉뚱한 문서를 근거로 점수가 매겨진다 (Phase 17)
+    graph = build_interview_agent_graph().get_graph()
+    targets = {e.target for e in graph.edges if e.source == "retrieval"}
+    assert targets == {"judge", "out_of_scope"}
+
+
+@pytest.mark.parametrize(
+    "distance, expected",
+    [
+        (SCOPE_DISTANCE_THRESHOLD - 0.001, "in_scope"),
+        (SCOPE_DISTANCE_THRESHOLD, "out_of_scope"),        # 경계값은 범위 밖으로 본다
+        (SCOPE_DISTANCE_THRESHOLD + 0.001, "out_of_scope"),
+    ],
+)
+def test_범위_판정은_임계값을_경계로_갈린다(distance, expected):
+    assert decide_scope({"out_of_scope": distance >= SCOPE_DISTANCE_THRESHOLD}) == expected
+
+
+def test_범위_밖_노드는_점수를_만들지_않는다():
+    # 틀린 근거로 매긴 점수를 사용자가 자기 실력으로 받아들이면 오히려 해롭다
+    result = out_of_scope_node({"question": "Kafka 리밸런싱은?", "answer": "..."})
+    assert "evaluation_result" not in result
+    assert "learning_tip" not in result
+    assert result["next_action"] == "out_of_scope"
 
 
 def test_judge에서_END로_바로_가는_빈_경로가_없다():

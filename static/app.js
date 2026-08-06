@@ -24,6 +24,7 @@ const $ = (id) => document.getElementById(id);
 // sessionId가 없으면 아직 시작 전이라 /interview/start로, 있으면 /interview/answer로 보낸다.
 let sessionId = null;
 let currentQuestion = null;   // 지금 화면에서 답해야 할 질문
+let pendingOutOfScope = false;  // 직전 턴이 근거 부족으로 보류됐는가 (Phase 17)
 
 // 공통 유틸: status 영역에 메시지 표시.
 // label을 주면 그 부분만 굵게 나온다 (예: "업로드 완료:" + 파일명).
@@ -126,7 +127,9 @@ function renderQuestions(questions) {
 function selectQuestion(question, li) {
   // 세션이 진행 중이면 질문을 바꿀 수 없다. 그래프가 그 세션의 흐름을 들고 있기 때문에,
   // 중간에 다른 질문으로 갈아타면 이어지던 맥락이 깨진다.
-  if (sessionId) {
+  // 다만 근거가 없어 보류된 상태는 예외다. 그때는 채점 자체가 없었고
+  // 다른 질문으로 이어가는 것이 정해진 흐름이다 (Phase 17).
+  if (sessionId && !pendingOutOfScope) {
     setStatus($("interview-status"), "진행 중인 면접이 있습니다. 끝내거나 다시 시작해주세요.", "error");
     return;
   }
@@ -134,8 +137,11 @@ function selectQuestion(question, li) {
   document.querySelectorAll(".question-list li").forEach((el) => el.classList.remove("selected"));
   li.classList.add("selected");
 
-  $("interview-hint").textContent = "아래 질문에 답하면 면접이 시작됩니다. 최대 3턴까지 이어집니다.";
-  showCurrentQuestion(question, "첫 질문");
+  $("interview-hint").textContent = pendingOutOfScope
+    ? "이 질문으로 면접을 이어갑니다."
+    : "아래 질문에 답하면 면접이 시작됩니다. 최대 3턴까지 이어집니다.";
+  showCurrentQuestion(question, pendingOutOfScope ? "다음 질문" : "첫 질문");
+  setStatus($("interview-status"), "", "");
 }
 
 // ---- STEP 3: 멀티턴 면접 ----
@@ -158,14 +164,22 @@ $("submit-btn").addEventListener("click", async () => {
   const answeredQuestion = currentQuestion;
 
   try {
+    // 보류된 세션을 이어갈 때는 재개할 지점이 없어 새 질문을 함께 보내야 한다
     const data = sessionId
-      ? await postJSON("/interview/answer", { session_id: sessionId, answer })
+      ? await postJSON("/interview/answer", {
+          session_id: sessionId,
+          answer,
+          ...(pendingOutOfScope ? { question: answeredQuestion } : {}),
+        })
       : await postJSON("/interview/start", { question: answeredQuestion, answer });
 
     sessionId = data.session_id;
+    pendingOutOfScope = data.status === "out_of_scope";
     appendTurn(data, answeredQuestion, answer);
 
-    if (data.status === "awaiting_answer") {
+    if (data.status === "out_of_scope") {
+      askScopeChoice(data);
+    } else if (data.status === "awaiting_answer") {
       currentQuestion = data.next_question;
       showCurrentQuestion(data.next_question, `턴 ${data.turn + 1} 질문`);
       $("answer-input").value = "";
@@ -215,9 +229,10 @@ function appendTurn(data, question, answer) {
   head.className = "turn-head";
   const no = document.createElement("span");
   no.className = "turn-no";
-  no.textContent = `턴 ${data.turn}`;
+  // 범위 밖 턴은 채점을 보류했으므로 면접 턴으로 세지 않는다
+  no.textContent = data.status === "out_of_scope" ? "평가 보류" : `턴 ${data.turn}`;
   head.appendChild(no);
-  head.appendChild(scoreBadges(data.evaluation));
+  if (data.evaluation) head.appendChild(scoreBadges(data.evaluation));
   turn.appendChild(head);
 
   turn.appendChild(bubble("질문", question, "q"));
@@ -225,6 +240,22 @@ function appendTurn(data, question, answer) {
 
   const result = document.createElement("div");
   result.className = "turn-result";
+
+  // 고정 지식에 근거가 없으면 점수가 아예 없다. 틀린 문서로 매긴 점수를
+  // 보여주느니 왜 보류했는지 알리고 다음 선택지를 준다
+  if (!data.evaluation) {
+    const notice = el("p", data.out_of_scope_message || "평가를 보류했습니다.");
+    notice.className = "scope-notice";
+    result.appendChild(notice);
+    if (data.retrieved_sources?.length) {
+      const s = el("p", "가장 가까운 자료: " + data.retrieved_sources.join(", ") + " (근거로 쓰기에는 멉니다)");
+      s.className = "sources";
+      result.appendChild(s);
+    }
+    turn.appendChild(result);
+    $("timeline").appendChild(turn);
+    return;
+  }
 
   const evaluation = data.evaluation;
   if (evaluation.overall_feedback) result.appendChild(el("p", evaluation.overall_feedback));
@@ -261,6 +292,31 @@ function appendTurn(data, question, answer) {
   $("turn-badge").hidden = false;
 }
 
+// 근거가 없어 보류했을 때 다음 행동을 사용자가 고르게 한다.
+// 자동으로 끝내지 않는 이유: 질문 하나가 KB 밖이었을 뿐 면접이 끝난 것은 아니다
+function askScopeChoice(data) {
+  $("current-question").hidden = true;
+  $("answer-area").hidden = true;
+  setStatus($("interview-status"), "", "");
+  $("scope-message").textContent = data.out_of_scope_message || "평가를 보류했습니다.";
+  $("scope-choice").hidden = false;
+}
+
+$("scope-continue-btn").addEventListener("click", () => {
+  $("scope-choice").hidden = true;
+  $("answer-area").hidden = false;
+  $("answer-input").value = "";
+  currentQuestion = null;
+  document.querySelectorAll(".question-list li").forEach((el) => el.classList.remove("selected"));
+  setStatus($("interview-status"), "위에서 다른 질문을 골라주세요.", "");
+  $("step-questions").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+$("scope-end-btn").addEventListener("click", () => {
+  $("scope-choice").hidden = true;
+  finishSession({ end_reason: "out_of_scope_ended", max_turns: 0 });
+});
+
 function finishSession(data) {
   $("current-question").hidden = true;
   $("answer-area").hidden = true;
@@ -269,6 +325,7 @@ function finishSession(data) {
   const reasons = {
     max_turns_reached: `${data.max_turns}턴을 모두 진행했습니다. 수고하셨습니다.`,
     fundamentals_no_followup: "기초 개념 설명으로 마무리했습니다. 개념을 익힌 뒤 다시 도전해보세요.",
+    out_of_scope_ended: "고정 지식에 근거가 없는 주제라 평가를 보류하고 종료했습니다.",
     completed: "면접이 종료되었습니다.",
   };
   $("end-message").textContent = reasons[data.end_reason] || reasons.completed;
@@ -278,9 +335,11 @@ function finishSession(data) {
 $("restart-btn").addEventListener("click", () => {
   sessionId = null;
   currentQuestion = null;
+  pendingOutOfScope = false;
   $("timeline").innerHTML = "";
   $("answer-input").value = "";
   $("answer-area").hidden = false;
+  $("scope-choice").hidden = true;
   $("session-end").hidden = true;
   $("current-question").hidden = true;
   $("turn-badge").hidden = true;

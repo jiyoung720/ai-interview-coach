@@ -391,6 +391,22 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .level-badge.senior { border-color: var(--accent); color: var(--accent-text); }
 
 /* ===== 감점 내역 ===== */
+/* 근거가 없어 채점을 보류했을 때의 안내 (Phase 17).
+   점수 대신 나오는 자리라 오류처럼 보이지 않게 중립적인 톤으로 둔다 */
+.scope-notice {
+  margin: 0 0 4px; padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--subtle-bg);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+}
+#scope-choice button.secondary {
+  background: transparent;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  margin-left: 8px;
+}
+
 .deductions {
   margin-top: 14px; padding: 14px 16px;
   border-radius: var(--radius-sm);

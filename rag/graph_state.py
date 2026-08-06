@@ -25,6 +25,10 @@ class InterviewState(TypedDict, total=False):
     context: str                    # 검색된 chunk 본문을 이어붙인 문자열
     retrieved_sources: list[str]    # 검색된 출처 파일명 목록
 
+    # 범위 판정 (Phase 17). KB에 근거가 없으면 틀린 문서로 채점하지 않고 보류한다.
+    top_distance: float             # 1순위 문서와의 코사인 거리. 임계값 판정과 로그 확인용
+    out_of_scope: bool              # True면 judge를 건너뛰고 out_of_scope 경로로 간다
+
     # Chain A: Generation Node가 채움
     generated_questions: InterviewQuestions
 

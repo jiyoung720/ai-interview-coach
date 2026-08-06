@@ -21,6 +21,18 @@ def evaluate_answer(request: EvaluateAnswerRequest):
     graph = build_interview_agent_graph()
     result = graph.invoke({"question": request.question, "answer": request.answer})
 
+    # KB에 근거가 없으면 judge를 거치지 않았으므로 평가 결과가 없다 (Phase 17).
+    # 점수를 만들어 내려보내지 않고, 왜 보류했는지만 알린다.
+    if result.get("out_of_scope"):
+        from api.interviews import OUT_OF_SCOPE_MESSAGE
+
+        return {
+            "out_of_scope": True,
+            "out_of_scope_message": OUT_OF_SCOPE_MESSAGE,
+            "retrieved_sources": result["retrieved_sources"],
+            "next_action": result.get("next_action"),
+        }
+
     # 결과 꺼내기
     evaluation = result["evaluation_result"]
     # 점수 구간에 따라 셋 중 한 경로만 실행되므로, 나머지 키는 state에 아예 없다.

@@ -10,13 +10,45 @@ def format_docs(docs):
 
 def retrieval_node(state: InterviewState) -> dict:
     """KB Retriever로 question과 관련된 context를 검색하고,
-    retrieved_sources를 코드에서 직접 추출한다 (LLM에게 생성시키지 않음)."""
+    retrieved_sources를 코드에서 직접 추출한다 (LLM에게 생성시키지 않음).
+
+    거리도 함께 꺼내는데, 검색은 항상 상위 3개를 돌려주므로 KB에 근거가 없어도
+    무언가는 나오기 때문이다. 1순위 거리로 그 결과를 믿을 수 있는지 판단한다."""
+    from rag.config import SCOPE_DISTANCE_THRESHOLD
+
     kb_retriever = get_interview_kb_retriever()      # KB 검색기 가져오기
-    docs = kb_retriever.invoke(state["question"])    # question으로 검색 → 관련 chunk 3개
+    # invoke 대신 점수까지 주는 API를 쓴다. retriever의 k 설정을 그대로 따른다.
+    k = kb_retriever.search_kwargs.get("k", 3)
+    scored = kb_retriever.vectorstore.similarity_search_with_score(state["question"], k=k)
+    docs = [doc for doc, _ in scored]
+
     context = format_docs(docs)                       # 3개 chunk의 본문을 \n\n로 이어붙여 하나의 context 문자열로 만듦
     # retrieved_sources(어느 문서에서 나왔는지)는 LLM에게 물어보지 않고 코드가 직접 metadata에서 추출
     sources = sorted({doc.metadata.get("source", "unknown") for doc in docs})  # 출처 파일명 추출
-    return {"context": context, "retrieved_sources": sources}
+    top_distance = float(scored[0][1]) if scored else 1.0
+
+    return {
+        "context": context,
+        "retrieved_sources": sources,
+        "top_distance": top_distance,
+        "out_of_scope": top_distance >= SCOPE_DISTANCE_THRESHOLD,
+    }
+
+
+def decide_scope(state: InterviewState) -> str:
+    """검색 근거가 채점에 쓸 만한지 판단한다. judge보다 앞에 있는 첫 번째 분기."""
+    return "out_of_scope" if state.get("out_of_scope") else "in_scope"
+
+
+def out_of_scope_node(state: InterviewState) -> dict:
+    """근거가 없을 때 채점을 보류한다.
+
+    점수도 level도 만들지 않는다. 틀린 문서를 근거로 매긴 점수는 없느니만 못하고,
+    사용자가 그 점수를 자기 실력으로 받아들이면 오히려 해롭기 때문이다."""
+    return {
+        "next_action": "out_of_scope",
+        "end_reason": "out_of_scope",
+    }
 
 
 def judge_node(state: InterviewState) -> dict:

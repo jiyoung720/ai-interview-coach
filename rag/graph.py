@@ -8,11 +8,13 @@ from rag.graph_nodes import (
     await_answer_node,
     decide_continue,
     decide_next_step,
+    decide_scope,
     followup_node,
     fundamentals_node,
     generation_node,
     judge_node,
     learning_tip_node,
+    out_of_scope_node,
     retrieval_node,
     user_docs_retrieval_node,
 )
@@ -76,9 +78,18 @@ def build_interview_agent_graph():
     graph.add_node("learning_tip", learning_tip_node)
     graph.add_node("followup", followup_node)
     graph.add_node("advanced", advanced_question_node)
+    graph.add_node("out_of_scope", out_of_scope_node)
 
     graph.add_edge(START, "retrieval")   # 시작 -> KB 검색
-    graph.add_edge("retrieval", "judge") # 검색 -> 채점
+    # 채점보다 먼저 판단한다. KB에 근거가 없으면 judge를 아예 부르지 않는다 (Phase 17)
+    graph.add_conditional_edges(
+        "retrieval",
+        decide_scope,
+        {
+            "in_scope": "judge",
+            "out_of_scope": "out_of_scope",
+        },
+    )
     # 여기가 Agent의 심장: 일반 add_edge와 달리 다음 노드가 런타임에 결정됨
     graph.add_conditional_edges(
         "judge",              # 이 노드가 끝난 직후 분기 판단
@@ -89,6 +100,7 @@ def build_interview_agent_graph():
             "advanced": "advanced",
         },
     )
+    graph.add_edge("out_of_scope", END)         # 근거 없음 경로 종료 (점수 없음)
     graph.add_edge("fundamentals", END)         # 0~3점 경로 종료
     graph.add_edge("learning_tip", "followup")  # 팁 -> 꼬리질문 (순차)
     graph.add_edge("followup", END)             # 4~6점 경로 종료
@@ -128,9 +140,20 @@ def build_interview_session_graph(checkpointer=None):
     graph.add_node("followup", followup_node)
     graph.add_node("advanced", advanced_question_node)
     graph.add_node("await_answer", await_answer_node)   # 사이클의 연결점 (interrupt)
+    graph.add_node("out_of_scope", out_of_scope_node)
 
     graph.add_edge(START, "retrieval")
-    graph.add_edge("retrieval", "judge")
+    # 근거가 없으면 채점하지 않고 END로 간다. 세션을 이어갈지는 사용자가 정하므로(Phase 17)
+    # 그래프 안에서 자동으로 루프하지 않고, API가 새 질문을 받아 다음 턴을 시작한다.
+    graph.add_conditional_edges(
+        "retrieval",
+        decide_scope,
+        {
+            "in_scope": "judge",
+            "out_of_scope": "out_of_scope",
+        },
+    )
+    graph.add_edge("out_of_scope", END)
     graph.add_conditional_edges(
         "judge",
         decide_next_step,
