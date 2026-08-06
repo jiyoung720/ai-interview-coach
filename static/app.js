@@ -377,8 +377,8 @@ function showSummary() {
     body.appendChild(el("p", "진행된 턴이 없습니다."));
   } else {
     body.appendChild(summaryOverview(graded));
-    // 턴이 둘 이상일 때만 흐름이 의미를 갖는다
-    if (sessionTurns.length > 1) body.appendChild(summaryTrend());
+    // 채점된 턴이 둘 이상일 때만 흐름이 의미를 갖는다
+    if (graded.length > 1) body.appendChild(summaryTrend(graded));
     sessionTurns.forEach((t) => body.appendChild(summaryTurn(t)));
   }
 
@@ -413,8 +413,11 @@ function summaryOverview(graded) {
 
 // 턴별 점수를 한 줄로 늘어놓는다. 요약에서 가장 알고 싶은 것은 개별 점수가 아니라
 // "어느 턴에서 흔들렸고 회복했는가"인데, 상세 블록만 쌓으면 스크롤하며 기억해야 한다.
-// 탭이나 화살표로 한 턴씩 보여주는 방식을 쓰지 않은 이유도 같다. 비교가 사라진다
-function summaryTrend() {
+// 탭이나 화살표로 한 턴씩 보여주는 방식을 쓰지 않은 이유도 같다. 비교가 사라진다.
+//
+// 보류된 턴은 여기 넣지 않는다. 점수가 없어 흐름에 보탤 것이 없는데 자리만 차지하고,
+// 특히 첫 턴이 보류면 실제 1턴이 왼쪽에서 밀려난다. 상세 목록에는 그대로 남는다
+function summaryTrend(graded) {
   const section = document.createElement("div");
   const caption = el("p", "턴별 기술 / 완성도");
   caption.className = "summary-trend-caption";
@@ -423,7 +426,7 @@ function summaryTrend() {
   const wrap = document.createElement("div");
   wrap.className = "summary-trend";
 
-  sessionTurns.forEach((t, i) => {
+  graded.forEach((t, i) => {
     if (i > 0) {
       const sep = el("span", "›");
       sep.className = "summary-trend-sep";
@@ -431,15 +434,12 @@ function summaryTrend() {
     }
     const item = document.createElement("div");
     item.className = "summary-trend-item";
-    const label = el("span", t.outOfScope ? "보류" : `턴 ${t.turn}`);
+    const label = el("span", `턴 ${t.turn}`);
     label.className = "summary-trend-label";
     item.appendChild(label);
 
-    const score = el("span", t.evaluation
-      ? `${t.evaluation.technical_score} / ${t.evaluation.completeness_score}`
-      : "-");
-    score.className = "summary-trend-score " +
-      (t.evaluation ? scoreClass(t.evaluation.technical_score) : "none");
+    const score = el("span", `${t.evaluation.technical_score} / ${t.evaluation.completeness_score}`);
+    score.className = "summary-trend-score " + scoreClass(t.evaluation.technical_score);
     item.appendChild(score);
     wrap.appendChild(item);
   });
