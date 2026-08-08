@@ -7,6 +7,10 @@ from rag.embeddings import get_embeddings
 
 # User Docs(사용자가 올리는 이력서 등)와 Interview KB(운영자가 작성하는 고정 지식)는
 # 성격이 다른 데이터라 컬렉션을 분리 - Chain A는 전자를, Chain B는 후자를 검색한다.
+# 섞으면 "이력서에 잘 안다고 썼으니 맞다"처럼 채점 근거가 오염된다.
+#
+# KB는 임베딩별로 컬렉션이 하나씩 있다. 앱이 검색하는 것은 Gemini 쪽이고,
+# 아래 interview_kb는 ko-sroberta로 인덱싱한 비교 실험용이다.
 CHROMA_DIR = "chroma_db"
 USER_DOCS_COLLECTION = "user_docs"
 INTERVIEW_KB_COLLECTION = "interview_kb"
@@ -30,7 +34,8 @@ def get_user_docs_retriever(k: int = 3):
     return get_user_docs_vectorstore().as_retriever(search_kwargs={"k": k})
 
 
-# Chain B가 검색하는 면접 KB 컬렉션. user_docs와 설정은 같고 컬렉션 이름만 다름
+# 같은 KB를 ko-sroberta로 인덱싱한 컬렉션. 앱은 더 이상 이쪽을 검색하지 않고,
+# 임베딩 비교 실험에서만 쓴다(아래 get_interview_kb_retriever 주석 참고).
 @lru_cache(maxsize=1)
 def get_interview_kb_vectorstore() -> Chroma:
     return Chroma(
