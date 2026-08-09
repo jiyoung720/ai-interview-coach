@@ -1,12 +1,23 @@
-# ai-interview-coach
+# AI 면접 코치
 
 [![CI/CD](https://github.com/jiyoung720/ai-interview-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/jiyoung720/ai-interview-coach/actions/workflows/ci.yml)
 
 사용자의 이력서·포트폴리오 문서를 기반으로 개인화된 기술 면접 질문을 생성하고, 답변을 평가하는 RAG 기반 AI 면접 코치 서비스입니다.
 
-> 단순히 RAG를 구현하는 데 그치지 않고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증하며 설계를 반복 개선했습니다. LangGraph 기반 Agent로 확장한 뒤에도 동일한 검증 방식을 유지했습니다. (자세한 진행 상황은 [Project Outcomes](#project-outcomes) 참고)
+> 단순히 RAG를 구현하는 데 그치지 않고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증하며 설계를 반복 개선했습니다. LangGraph 기반 Agent로 확장한 뒤에도 동일한 검증 방식을 유지했습니다. (자세한 진행 상황은 [만든 것](#만든-것) 참고)
 
-## Why this project?
+## 서비스 화면
+
+| | |
+|:---:|:---:|
+| **① 이력서 기반 질문 생성** | **② 답변 평가와 코칭** |
+| [<img src="docs/images/01-questions.png" width="100%" alt="관심 주제로 검색해 이력서 기반 면접 질문 5개를 생성한 화면">](docs/images/01-questions.png) | [<img src="docs/images/02-evaluation.png" width="100%" alt="점수 뱃지와 감점 근거, 강점, 개선점, 심화 질문, 참고한 자료가 표시된 채점 결과">](docs/images/02-evaluation.png) |
+| 관심 주제로 업로드한 문서를 검색해, 실제 경험에 붙는 질문을 만듭니다 | 점수만 주지 않고 **무엇 때문에 몇 점이 깎였는지**를 함께 보여줍니다 |
+| **③ 근거가 없으면 채점 보류** | **④ 세션 요약** |
+| [<img src="docs/images/03-out-of-scope.png" width="100%" alt="고정 지식에 근거가 없어 채점을 보류하고 계속하기와 종료를 묻는 화면">](docs/images/03-out-of-scope.png) | [<img src="docs/images/04-summary.png" width="100%" alt="턴별 점수 흐름과 질문, 답변, 총평이 담긴 모의 면접 요약">](docs/images/04-summary.png) |
+| 고정 지식에 근거가 없는 질문은 **점수를 만들지 않고** 보류합니다 | 턴별 점수 흐름과 질문·답변을 한 화면에 모아 되짚습니다 |
+
+## 왜 만들었나
 
 이 프로젝트는 GPT-style Transformer를 PyTorch로 직접 구현한 [`korean-chatbot`](https://github.com/jiyoung720/korean-chatbot) 프로젝트의 후속작입니다.
 
@@ -15,11 +26,11 @@
 
 두 프로젝트를 함께 보면 "모델 내부를 이해하는 능력"과 "실제 서비스를 만드는 능력"을 둘 다 보여줄 수 있도록 의도적으로 분리했습니다.
 
-### Why RAG, not fine-tuning?
+### 왜 파인튜닝이 아니라 RAG인가
 
 사용자마다 업로드하는 문서가 다르고 계속 바뀌기 때문에, 매번 파인튜닝하는 건 비용·시간 면에서 현실적이지 않습니다. 그래서 모델 가중치는 고정하고, 사용자 문서를 Vector DB에 저장한 뒤 검색해서 Gemini에 컨텍스트로 제공하는 구조로 설계했습니다. 이 구조는 사용자가 늘어나도 그대로 확장되고, 어떤 질문이 어떤 문서에서 나왔는지도 추적할 수 있습니다.
 
-## Example Output
+## 동작 예시
 
 **질문 생성**
 ```bash
@@ -65,7 +76,7 @@ curl -X POST http://127.0.0.1:8000/evaluate-answer \
 
 4-6점 경로에서는 `learning_tip.topic`과 `followup_question`이 같은 주제를 겨냥합니다. Learning Tip이 먼저 핵심 약점을 정하고 Followup이 그 결과를 이어받기 때문입니다. 두 노드를 병렬로 두면 같은 약점을 각자 다르게 해석할 위험이 있어 순차로 설계했습니다.
 
-## Architecture
+## 아키텍처
 
 **Chain A — 질문 생성**
 
@@ -128,7 +139,7 @@ flowchart LR
 | Judge Calibration Set (44개) | 채점이 올바른 코칭 경로로 가는가 | 경로 정확도 90.9% (변동 폭 약 5%p) |
 | RAGAS Faithfulness | 생성한 내용이 근거에 충실한가 | Calibration Set 기준 평균 0.4412 |
 
-## Project Structure
+## 디렉토리 구조
 
 ```
 ├── app/main.py              FastAPI 진입점. 라우터 등록과 정적 파일 서빙
@@ -280,7 +291,7 @@ push → test (회귀 테스트 35개) → docker-build (빌드 + 검증 + Docke
 
 빌드 위치를 EC2에서 CI로 옮긴 이유는 두 가지입니다. 맥(arm64)에서 `--platform linux/amd64`로 빌드하면 QEMU 에뮬레이션이 임베딩 모델 로드 단계에서 멈춰 실패했고(두 번 재현), EC2에서 빌드하면 `t3.small`의 CPU와 디스크를 배포마다 소모합니다. GitHub Actions 러너는 네이티브 amd64라 두 문제가 함께 해소됩니다. 커밋 SHA 태그를 함께 달아두면 문제가 생겼을 때 특정 커밋 이미지로 되돌릴 수 있습니다.
 
-## Project Outcomes
+## 만든 것
 
 **RAG 파이프라인**
 - LCEL로 먼저 구현한 뒤 LangGraph StateGraph로 마이그레이션. 기존 코드를 보존해 과정 자체를 남김
@@ -304,7 +315,7 @@ push → test (회귀 테스트 35개) → docker-build (빌드 + 검증 + Docke
 - Docker 패키징·CI/CD·EC2 배포에 단일 페이지 프론트엔드까지 붙여 업로드부터 코칭까지 동작하는 서비스로 완성
 - 배포한 서버를 응답 시간·프로세스 상태·패킷 세 계층에서 관찰해 "응답 지연의 원인은 LLM 대기"를 교차 검증 ([분석 보고서](#문서))
 
-## Key Findings
+## 실험으로 알게 된 것
 
 "작동한다"가 아니라 "왜 그렇게 작동하는지"를 확인한 것들입니다. 전체 기록은 [실험 로그](docs/experiment_log.md)에 있습니다.
 
