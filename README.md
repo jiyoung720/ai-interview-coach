@@ -6,6 +6,13 @@
 
 > 단순히 RAG를 구현하는 데 그치지 않고, Retrieval·Faithfulness·Judge Calibration을 실험으로 검증하며 설계를 반복 개선했습니다. LangGraph 기반 Agent로 확장한 뒤에도 동일한 검증 방식을 유지했습니다. (자세한 진행 상황은 [만든 것](#만든-것) 참고)
 
+## 배포 사이트
+
+**[AI 면접 코치 바로가기](http://15.164.163.232:8000/)**
+
+> 개인 프로젝트라 데모 서버를 상시 운영하지는 않습니다. 접속이 안 되면 아래 [실행 방법](#실행-방법)으로 로컬에서 띄워 보실 수 있습니다.
+> HTTPS는 아직 적용하지 않았습니다(도메인 확보 후 진행 예정). 실제 개인정보가 담긴 이력서는 올리지 마시고, [샘플 이력서](tests/fixtures/sample_resume_ko.pdf)로 확인해 주세요.
+
 ## 서비스 화면
 
 | | |
@@ -258,22 +265,41 @@ curl -X POST http://127.0.0.1:8000/interview/answer \
 
 ## 실행 방법
 
+### 준비물
+
+- **Python 3.12 이상**
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)** — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **Gemini API 키** — [Google AI Studio](https://aistudio.google.com/apikey)에서 발급합니다. 질문 생성·채점·KB 임베딩에 모두 쓰이므로 없으면 동작하지 않습니다
+
 ### 로컬
+
 ```bash
-uv sync
-cp .env.example .env  # GEMINI_API_KEY 채우기
+uv sync                                  # 의존성 설치
+cp .env.example .env                     # GEMINI_API_KEY 채우기
+uv run python -m scripts.load_kb         # Interview KB 인덱싱 (최초 1회)
 uv run uvicorn app.main:app --reload
 ```
+
 브라우저에서 `http://127.0.0.1:8000/` 로 접속하면 데모 화면(업로드 → 질문 생성 → 면접 진행)을 쓸 수 있습니다. 프론트는 순수 HTML/CSS/JS 단일 페이지(`static/`)이고 FastAPI가 직접 서빙합니다.
 
+**세 번째 줄을 건너뛰면 안 됩니다.** 벡터 인덱스(`chroma_db/`)는 저장소에 포함되지 않아 처음 받으면 비어 있습니다. 인덱싱하지 않고 실행하면 에러 없이 뜨지만 **모든 질문이 "근거가 없어 평가를 보류합니다"로 나옵니다.** 한 번 돌려두면 `chroma_db/`에 남아 다음부터는 필요 없습니다.
+
+`uv sync`는 임베딩 모델(423MB)을 함께 받으므로 처음에는 몇 분 걸릴 수 있습니다.
+
 마지막 단계는 **대화형**입니다. 답변을 제출하면 평가와 코칭이 타임라인에 쌓이고, 이어지는 꼬리질문·심화질문에 다시 답하며 최대 3턴까지 면접이 진행됩니다.
+
+```bash
+uv run pytest        # 회귀 테스트 48개. API 키 없이 동작합니다
+```
 
 ### Docker
 ```bash
 cp .env.example .env  # GEMINI_API_KEY 채우기
 docker compose up -d
 ```
-최초 기동 시 Interview KB가 자동으로 인덱싱되고(29개 문서, 54 chunk), 이후 재시작에서는 volume에 남아 있는 인덱스를 그대로 사용합니다. `chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
+**Docker에서는 KB 인덱싱을 따로 하지 않아도 됩니다.** 기동 스크립트(`docker-entrypoint.sh`)가 인덱스가 비어 있는지 보고 필요할 때만 돌립니다(29개 문서, 54 chunk). 이후 재시작에서는 volume에 남아 있는 것을 그대로 씁니다. 최초 기동은 인덱싱 때문에 1분 정도 걸릴 수 있습니다.
+
+`chroma_db`와 업로드 파일은 volume에 보존되며, `GEMINI_API_KEY`는 이미지에 포함되지 않고 런타임에 주입됩니다.
 
 이미지는 CPU 전용 torch를 사용해 3.79GB입니다(amd64 기준 2.7GB). 기본 설정으로 빌드하면 배포 대상에 없는 GPU용 CUDA 스택이 3.5GB가량 포함되어 10.9GB가 되는데, 이를 Dockerfile 안에서만 걷어냈습니다. 로컬(macOS)과 Colab(GPU 사용) 환경은 영향을 받지 않도록 `pyproject.toml`은 수정하지 않았습니다.
 
@@ -282,7 +308,7 @@ docker compose up -d
 `main` 브랜치에 푸시하면 GitHub Actions가 다음을 자동 수행합니다.
 
 ```
-push → test (회귀 테스트 35개) → docker-build (빌드 + 검증 + Docker Hub push) → deploy (EC2가 이미지를 받아 재기동)
+push → test (회귀 테스트 48개) → docker-build (빌드 + 검증 + Docker Hub push) → deploy (EC2가 이미지를 받아 재기동)
 ```
 
 - **test**: 분기 로직, 그래프 구조, chunking 등 Gemini API 키가 필요 없는 계층만 검증합니다. 비밀값을 CI에 노출하지 않기 위한 설계이며, 마침 회귀가 가장 나기 쉬운 부분(Agent 분기)이 이 범위에 들어옵니다.
