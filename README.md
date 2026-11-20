@@ -132,19 +132,20 @@ flowchart LR
 | LLM | Gemini 3.5 Flash | Structured Output으로 응답 스키마를 강제해, 자유 텍스트 파싱 없이 API 계약을 지킨다 |
 | Vector DB | Chroma (`hnsw:space=cosine`) | 텍스트 임베딩은 크기가 아니라 방향이 의미를 담으므로 기본값 L2 대신 코사인 거리를 지정 |
 | Embedding (KB) | **Gemini Embedding** | KB를 29개로 늘리자 `ko-sroberta`가 "멱등성", "N+1" 같은 저빈도 용어를 구분하지 못했다. 30문항 기준 86.7% → 100% |
-| Embedding (업로드 문서) | ko-sroberta (로컬) | 이력서는 사용자가 올린 개인정보라 외부 API로 보내지 않는다 |
+| Embedding (업로드 문서) | ko-sroberta (로컬) | 업로드 문서의 벡터는 로컬에서 생성한다. 질문 생성 시에는 검색된 문서 조각이 Gemini 프롬프트에 포함된다 |
 | Backend | FastAPI | ASGI 기반이라 LLM 호출처럼 대기가 긴 I/O에서 처리량이 나온다 |
 | Frontend | 순수 HTML/CSS/JS | 단일 페이지 데모에 SPA 프레임워크는 과하다고 보고 배제. 빌드 단계·CORS 설정이 없다 |
 | 패키지 관리 | uv | `uv.lock`으로 버전을 고정해 로컬과 컨테이너의 의존성을 일치시킨다 |
 | 배포 | Docker → Docker Hub → EC2 | GitHub Actions에서 빌드해 이미지를 올리고, EC2는 받아서 띄우기만 한다 |
 
-**평가 도구**는 목적이 서로 다른 세 가지를 나눠 씁니다.
+**평가 도구**는 목적이 서로 다른 두 가지를 나눠 씁니다.
 
 | 도구 | 무엇을 재는가 | 현재 값 |
 |---|---|---|
 | Retrieval 평가셋 (65문항 5유형) | 검색이 올바른 근거를 찾는가 | in-scope 38문항 Top-1 100%, Faithfulness 0.9702 |
 | Judge Calibration Set (44개) | 채점이 올바른 코칭 경로로 가는가 | 경로 정확도 90.9% (변동 폭 약 5%p) |
-| RAGAS Faithfulness | 생성한 내용이 근거에 충실한가 | Calibration Set 기준 평균 0.4412 |
+
+Retrieval 평가셋의 Faithfulness는 검색된 근거가 사람이 작성한 기준 답변의 주장을 얼마나 뒷받침하는지 측정한 값입니다. 코칭과 꼬리질문 등 시스템 생성물의 근거 충실도는 v1에서 정량 평가하지 않았습니다.
 
 ## 디렉토리 구조
 
@@ -379,7 +380,7 @@ Learning Tip과 Followup을 순차로 둔 것은 두 출력이 같은 주제를 
 
 **검색이 정확해도 생성이 컨텍스트를 벗어난다**
 
-Retriever가 올바른 근거를 찾아줘도 LLM이 그 밖의 내용을 덧붙이는 것을 관찰했습니다. RAGAS로 재보니 Calibration Set 17개의 평균 Faithfulness가 0.4412였습니다. Retrieval 성공과 생성 충실도는 별개로 측정해야 하는 값입니다.
+검색이 올바른 근거를 찾은 경우에도 생성 모델이 그 근거에 없는 내용을 덧붙이는 사례를 정성적으로 관찰했습니다. Retrieval 성공과 생성 충실도는 별개로 측정해야 하는 값입니다. 별도의 RAGAS 실험에서는 캘리브레이션 세트의 지원자 답변이 검색된 KB 근거로 얼마나 뒷받침되는지 측정했습니다. 생성된 코칭을 직접 평가하는 절차는 v2 설계에 추가했습니다.
 
 **근거가 없으면 채점하지 않는 것도 기능이다**
 
