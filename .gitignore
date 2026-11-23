@@ -8,3 +8,6 @@ data/uploads/
 # WireShark 캡처 파일 (퍼블릭 IP 등이 담겨 있어 커밋하지 않음)
 *.pcapng
 *.pcap
+
+# 앱 DB (세션·예산). 실행 중에 생기는 데이터라 커밋하지 않는다
+data/app.db*

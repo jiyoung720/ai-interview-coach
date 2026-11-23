@@ -47,6 +47,7 @@ RUN python -c "from langchain_huggingface import HuggingFaceEmbeddings; \
 
 # 애플리케이션 코드 (자주 바뀌므로 무거운 레이어들 뒤에 배치)
 COPY app/ app/
+COPY core/ core/
 COPY api/ api/
 COPY rag/ rag/
 COPY kb/ kb/
@@ -56,8 +57,8 @@ COPY static/ static/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# volume 마운트 지점. 컨테이너를 지워도 인덱스와 업로드 파일은 남는다
-VOLUME ["/app/chroma_db", "/app/data/uploads"]
+# volume 마운트 지점. 컨테이너를 지워도 인덱스, 앱 DB(세션·예산), 업로드 파일은 남는다
+VOLUME ["/app/chroma_db", "/app/data"]
 
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -65,4 +66,6 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 8000
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 워커는 반드시 1개. 세션 잠금이 프로세스 안의 잠금이라 워커를 늘리면 같은 세션 요청이
+# 서로 다른 프로세스에서 동시에 처리될 수 있다 (설계 §5.4).
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

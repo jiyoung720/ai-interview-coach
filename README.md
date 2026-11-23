@@ -276,7 +276,7 @@ curl -X POST http://127.0.0.1:8000/interview/answer \
 
 ```bash
 uv sync                                  # 의존성 설치
-cp .env.example .env                     # GEMINI_API_KEY 채우기
+cp .env.example .env                     # GEMINI_API_KEY 채우기 (APP_MODE=local 유지)
 uv run python -m scripts.load_kb         # Interview KB 인덱싱 (최초 1회)
 uv run uvicorn app.main:app --reload
 ```

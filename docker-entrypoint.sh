@@ -9,7 +9,10 @@ set -e
 # 확인 대상은 앱이 실제로 검색하는 컬렉션이다. 임베딩을 바꾸면 컬렉션도 함께 바뀌는데
 # 여기서 특정 컬렉션을 지목해두면, 이미 채워진 옛 컬렉션을 보고 "인덱싱 완료"로 판단한 뒤
 # 앱은 빈 컬렉션을 검색하게 된다. 그 경우 크래시 없이 모든 질문이 "근거 없음"이 된다.
-if [ "$SKIP_KB_LOAD" != "1" ]; then
+#
+# v1 KB 적재는 로컬 모드(v1 라우터가 등록되는 모드)에서만 한다. 공개 데모(demo, 기본값)는
+# v1 라우터가 없으므로 필요 없고, 빈 볼륨·API 키 없이도 부팅돼야 한다. v2 KB 인덱싱은 M1에서 붙는다.
+if [ "${APP_MODE:-demo}" = "local" ] && [ "$SKIP_KB_LOAD" != "1" ]; then
   python - <<'PY'
 from rag.vectorstore import get_interview_kb_retriever
 
