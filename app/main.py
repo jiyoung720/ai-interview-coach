@@ -6,40 +6,71 @@
 
 uvicorn은 `app.main:app`을 그대로 쓰면 된다. 모듈 속성 `app`을 처음 읽을 때
 환경변수로 설정을 만들어 앱을 생성한다(아래 __getattr__). 테스트는 create_app()에
-설정을 직접 넘긴다.
+설정과 엔진을 직접 넘긴다.
 """
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from core.budget import BudgetGate
+from api.sessions import router as sessions_router
+from core.budget import BudgetExhausted, BudgetGate
 from core.config import Settings, load_settings
 from core.db import init_db
 from core.llm import configure_budget
+from core.locks import LockTimeout
+from core.owner import OwnerMiddleware
+from core.session_service import ServiceError, SessionService, VisitorLimits
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+PURGE_INTERVAL_SECONDS = 60 * 60
+# 로컬 모드는 SECRET_KEY 없이도 뜬다. 쿠키 서명이 재시작 후에도 유지되도록 고정값을 쓴다(노트북 전용).
+LOCAL_FALLBACK_SECRET = "local-only-not-for-public-servers"
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, engine=None) -> FastAPI:
     settings = settings or load_settings()
+    if engine is None:
+        from rag.v2.turn_graph import SkeletonEngine   # M0: 가짜 판정 골격. M2에서 진짜 엔진으로 교체
+
+        engine = SkeletonEngine()
+
+    service = SessionService(
+        settings.db_path,
+        engine,
+        visitor_limits=VisitorLimits() if settings.is_demo else None,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(settings.db_path)
         # 모든 외부 모델 호출이 이 게이트를 지난다 (core/llm.py)
         configure_budget(BudgetGate(settings.db_path, settings.daily_llm_budget))
+        purge_task = asyncio.create_task(_purge_loop(service))
         yield
+        purge_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await purge_task
         configure_budget(None)
 
     app = FastAPI(title="AI Interview Coach", lifespan=lifespan)
     app.state.settings = settings
+    app.state.session_service = service
+    app.add_middleware(
+        OwnerMiddleware,
+        secret=settings.secret_key or LOCAL_FALLBACK_SECRET,
+        secure=settings.is_demo,
+    )
+    _register_error_handlers(app)
 
     @app.get("/health")
     def health_check():
         return {"status": "ok", "mode": settings.app_mode}
+
+    app.include_router(sessions_router)
 
     if settings.is_local:
         _register_v1(app)
@@ -50,6 +81,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"status": "ok", "message": "v2 데모 준비 중입니다."})
 
     return app
+
+
+async def _purge_loop(service: SessionService) -> None:
+    """기동 직후 한 번, 이후 1시간마다 만료 세션을 지운다."""
+    while True:
+        await asyncio.to_thread(service.purge_expired)
+        await asyncio.sleep(PURGE_INTERVAL_SECONDS)
+
+
+def _register_error_handlers(app: FastAPI) -> None:
+    def error(status: int, message: str) -> JSONResponse:
+        return JSONResponse(status_code=status, content={"detail": message})
+
+    @app.exception_handler(ServiceError)
+    async def on_service_error(request: Request, exc: ServiceError):
+        return error(exc.status_code, str(exc))
+
+    @app.exception_handler(BudgetExhausted)
+    async def on_budget(request: Request, exc: BudgetExhausted):
+        return error(429, "오늘 체험 한도에 도달했습니다.")
+
+    @app.exception_handler(LockTimeout)
+    async def on_lock_timeout(request: Request, exc: LockTimeout):
+        # 같은 세션의 다른 요청이 처리 중이다. 클라이언트는 같은 키로 다시 보내면 된다.
+        return error(409, "같은 세션의 요청을 처리하고 있습니다. 잠시 후 다시 시도해 주세요.")
 
 
 def _register_v1(app: FastAPI) -> None:

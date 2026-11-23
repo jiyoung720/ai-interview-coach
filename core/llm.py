@@ -30,6 +30,14 @@ def configure_budget(gate: BudgetGate | None) -> None:
     _gate = gate
 
 
+def reserve_judgement() -> Reservation:
+    """그래프를 실행하기 전에 판정 1회분을 예약한다. 예산이 없으면 BudgetExhausted.
+    게이트가 없으면(스크립트·테스트) 차감 없이 빈 예약을 돌려준다."""
+    if _gate is None:
+        return Reservation()
+    return _gate.reserve()
+
+
 @contextmanager
 def reservation_scope(reservation: Reservation):
     """이 블록 안의 첫 외부 호출이 예약분을 쓰게 한다."""
