@@ -140,6 +140,8 @@ def check(root: Path, today: date | None = None) -> Report:
             if _norm(project.resume_span) not in resume:
                 report.errors.append(f"{sample_id}/{project.id}: resume_span이 이력서 원문에 그대로 없습니다")
         for question in profile.experience_questions:
+            if _norm(question.resume_span) not in resume:
+                report.errors.append(f"{sample_id}/{question.id}: 질문 전제의 resume_span이 이력서 원문에 그대로 없습니다")
             if question.project_id not in project_ids:
                 report.errors.append(f"{sample_id}/{question.id}: 없는 프로젝트를 가리킵니다: {question.project_id}")
             for item in question.rubric_items:

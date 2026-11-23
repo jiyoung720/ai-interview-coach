@@ -8,25 +8,28 @@ projects:
     tech: [Python, FastAPI, LangChain, Chroma]
     outcomes:
       - 조항 단위 chunking으로 근거 분산 감소
-      - 임베딩 교체로 1순위 정답 비율 62% → 81%
-    resume_span: "임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체해 1순위 정답 비율을 62%에서 81%로 올렸다."
+      - 같은 50문항 기준 임베딩 교체로 1순위 정답 31개 → 41개 (62% → 82%)
+    resume_span: "같은 50문항으로 비교해, 임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체하고 1순위 정답을 31개에서 41개로(62% → 82%) 늘렸다."
   - id: p2
     name: 개인 학습 노트 Q&A 봇
     role: 개인 프로젝트
     tech: [Python, FastAPI]
     outcomes:
-      - 범위 밖 질문 답변 보류
+      - 범위 밖 질문 답변 보류 적용
     resume_span: "지식베이스에 답이 없는 질문에도 엉뚱한 노트를 근거로 답하는 문제를 발견하고, 1순위 거리가 기준보다 멀면 답을 보류하도록 했다."
 experience_questions:
   - id: eq1
     project_id: p1
-    question: "규정 문서 챗봇에서 임베딩 모델을 교체하셨는데, 무엇을 근거로 교체를 결정했나요?"
+    question: "규정 문서 챗봇에서 임베딩 모델을 교체하셨는데, 무엇을 근거로 결정했고 다른 선택지도 검토했나요?"
     rubric_items: [decision_basis, alternatives]
+    resume_span: "같은 50문항으로 비교해, 임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체하고 1순위 정답을 31개에서 41개로(62% → 82%) 늘렸다."
   - id: eq2
     project_id: p1
     question: "chunk를 조항 단위로 바꾼 뒤 검색이 실제로 나아졌는지는 어떻게 확인했나요?"
     rubric_items: [outcome]
+    resume_span: "처음에는 500자 고정 길이로 chunk를 나눴으나, 조항 단위로 나누도록 바꿔 근거가 여러 chunk로 흩어지는 문제를 줄였다."
   - id: eq3
     project_id: p2
-    question: "학습 노트 봇에서 답을 보류하는 기준 거리는 어떻게 정했나요?"
+    question: "학습 노트 봇에서 답을 보류하는 기준 거리는 구체적으로 어떻게 정했고, 왜 그렇게 정했나요?"
     rubric_items: [specificity, decision_basis]
+    resume_span: "지식베이스에 답이 없는 질문에도 엉뚱한 노트를 근거로 답하는 문제를 발견하고, 1순위 거리가 기준보다 멀면 답을 보류하도록 했다."

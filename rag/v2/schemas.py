@@ -92,6 +92,7 @@ class ExperienceQuestion(BaseModel):
     project_id: str
     question: str
     rubric_items: list[str] = Field(min_length=1, max_length=2)   # 이 질문이 볼 항목만 고정 (설계 §6.2)
+    resume_span: str              # 질문의 전제를 뒷받침하는 이력서 원문 구간 (이력서에 그대로 있어야 한다)
 
 
 class SampleProfile(BaseModel):

@@ -63,7 +63,8 @@ PROFILE = {
     "projects": [{"id": "p1", "name": "문서 검색 챗봇", "role": "개발", "tech": ["RAG"],
                   "resume_span": "RAG 기반 사내 문서 검색 챗봇을 만들었다."}],
     "experience_questions": [{"id": "eq1", "project_id": "p1", "question": "임베딩을 왜 바꿨나요?",
-                              "rubric_items": ["decision_basis"]}],
+                              "rubric_items": ["decision_basis"],
+                              "resume_span": "임베딩 모델을 교체해 정확도를 올렸다."}],
 }
 
 CONCEPT_CASES = {
@@ -173,6 +174,12 @@ def test_프로필_원문_구간은_이력서에_그대로_있어야_한다(tmp_
     profile = yaml.safe_load(yaml.safe_dump(PROFILE, allow_unicode=True))
     profile["projects"][0]["resume_span"] = "이력서에 없는 경력"
     assert any("resume_span" in e for e in errors_of(write_tree(tmp_path, **{"data_v2/samples/sample_a.profile.yaml": profile})))
+
+
+def test_경험_질문의_전제_구간도_이력서에_있어야_한다(tmp_path):
+    profile = yaml.safe_load(yaml.safe_dump(PROFILE, allow_unicode=True))
+    profile["experience_questions"][0]["resume_span"] = "이력서에 없는 전제"
+    assert any("질문 전제" in e for e in errors_of(write_tree(tmp_path, **{"data_v2/samples/sample_a.profile.yaml": profile})))
 
 
 def test_레포의_실제_v2_데이터가_검사를_통과한다():
