@@ -24,6 +24,7 @@ from core.llm import configure_budget
 from core.locks import LockTimeout
 from core.owner import OwnerMiddleware
 from core.session_service import ServiceError, SessionService, VisitorLimits
+from core.tracing import configure_tracing, langfuse_provider_from_env
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 PURGE_INTERVAL_SECONDS = 60 * 60
@@ -31,7 +32,7 @@ PURGE_INTERVAL_SECONDS = 60 * 60
 LOCAL_FALLBACK_SECRET = "local-only-not-for-public-servers"
 
 
-def create_app(settings: Settings | None = None, engine=None) -> FastAPI:
+def create_app(settings: Settings | None = None, engine=None, tracer_provider=None, trace_strict: bool = False) -> FastAPI:
     settings = settings or load_settings()
     if engine is None:
         from rag.v2.turn_graph import SkeletonEngine   # M0: 가짜 판정 골격. M2에서 진짜 엔진으로 교체
@@ -49,11 +50,17 @@ def create_app(settings: Settings | None = None, engine=None) -> FastAPI:
         init_db(settings.db_path)
         # 모든 외부 모델 호출이 이 게이트를 지난다 (core/llm.py)
         configure_budget(BudgetGate(settings.db_path, settings.daily_llm_budget))
+        # Langfuse 키가 없으면 내보내지 않는다. 테스트는 tracer_provider로 메모리 exporter를 넘긴다
+        provider = tracer_provider if tracer_provider is not None else langfuse_provider_from_env()
+        configure_tracing(provider, strict=trace_strict)
         purge_task = asyncio.create_task(_purge_loop(service))
         yield
         purge_task.cancel()
         with suppress(asyncio.CancelledError):
             await purge_task
+        if provider is not None and tracer_provider is None:
+            provider.shutdown()
+        configure_tracing(None)
         configure_budget(None)
 
     app = FastAPI(title="AI Interview Coach", lifespan=lifespan)

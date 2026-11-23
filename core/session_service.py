@@ -21,6 +21,7 @@ from core import idempotency, llm, transitions
 from core.budget import kst_day
 from core.db import connect
 from core.locks import KeyedLocks
+from core.tracing import get_tracer
 
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60   # 데모 세션 7일 (설계 §2.5)
 MAX_ANSWER_CHARS = 2000
@@ -90,7 +91,8 @@ class SessionService:
                 else:
                     session_id = self._insert_planning(conn, owner_id, create_key, hash_, client_ip)
 
-                plan = self.engine.plan(body)   # 외부 호출이 생길 수 있어 트랜잭션 밖에서 실행
+                with get_tracer().span("plan", trace_session_id=self.trace_session_id(session_id)):
+                    plan = self.engine.plan(body)   # 외부 호출이 생길 수 있어 트랜잭션 밖에서 실행
                 with self.locks.hold(f"session:{session_id}", self.lock_timeout):
                     conn.execute("BEGIN IMMEDIATE")
                     if not self._exists(conn, session_id):
@@ -147,8 +149,12 @@ class SessionService:
         hash_ = idempotency.body_hash(body)
         conn = connect(self.db_path)
         try:
-            self._load_owned(conn, owner_id, session_id)   # 잠금 전에 소유권·만료부터 거른다
-            with self.locks.hold(f"session:{session_id}", self.lock_timeout):
+            first = self._load_owned(conn, owner_id, session_id)   # 잠금 전에 소유권·만료부터 거른다
+            action = body.get("action", "answer")
+            # 요청 하나 = trace 하나. 추적 전용 세션 ID로 같은 세션의 요청들을 묶는다 (설계 §7.4-1)
+            with self.locks.hold(f"session:{session_id}", self.lock_timeout), get_tracer().span(
+                "session.event", trace_session_id=first["trace_session_id"], action=action
+            ) as span:
                 row = self._load_owned(conn, owner_id, session_id)   # 잠금을 기다리는 사이 삭제됐을 수 있다
 
                 stored = idempotency.lookup(conn, owner_id, idempotency.EVENT_SCOPE, key)
@@ -156,9 +162,9 @@ class SessionService:
                     stored_hash, response = stored
                     if stored_hash != hash_:
                         raise KeyReused("같은 이벤트 키에 다른 요청 본문입니다.")
+                    span.set(outcome="replay")
                     return response
 
-                action = body.get("action", "answer")
                 if action not in transitions.ACTIONS:
                     raise ServiceError(f"알 수 없는 행동입니다: {action}")
                 if not transitions.can_act(row["status"], action):
@@ -201,8 +207,12 @@ class SessionService:
                 }
                 next_question = result["next_question"] if result["outcome"] != "ended" else None
                 new_status = transitions.status_after(result["outcome"], next_question)
-                return self._commit_turn(conn, owner_id, session_id, row, key, hash_, record,
-                                         next_question, result["next_cursor"], new_status)
+                with get_tracer().span("commit"):
+                    response = self._commit_turn(conn, owner_id, session_id, row, key, hash_, record,
+                                                 next_question, result["next_cursor"], new_status)
+                span.set(outcome=result["outcome"], status=new_status,
+                         budget_exhausted=record["coaching_skipped"] or None)
+                return response
         finally:
             conn.close()
 

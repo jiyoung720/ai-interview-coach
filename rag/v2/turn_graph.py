@@ -13,6 +13,7 @@ from typing import Callable, Protocol, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from core.budget import BudgetExhausted
+from core.tracing import get_tracer
 
 MAX_FOLLOWUPS = 1   # MVP: 메인 질문당 꼬리질문 최대 1개 (설계 §5.1)
 
@@ -89,16 +90,21 @@ class SkeletonEngine:
 
     def _build(self):
         def judge_node(state: TurnState) -> dict:
-            return {"judgement": self.judge(state["question"], state["answer"])}
+            with get_tracer().span("judge") as span:
+                judgement = self.judge(state["question"], state["answer"])
+                span.set(diagnosis=judgement.get("diagnosis"))
+                return {"judgement": judgement}
 
         def coach_node(state: TurnState) -> dict:
             if self.coach is None:
                 return {"coaching": None, "coaching_skipped": False}
-            try:
-                return {"coaching": self.coach(state["question"], state["judgement"]), "coaching_skipped": False}
-            except BudgetExhausted:
-                # 판정 후 예산 소진: 판정은 보존하고 코칭·꼬리질문은 생략한다 (설계 §2.5)
-                return {"coaching": None, "coaching_skipped": True}
+            with get_tracer().span("coach") as span:
+                try:
+                    return {"coaching": self.coach(state["question"], state["judgement"]), "coaching_skipped": False}
+                except BudgetExhausted:
+                    # 판정 후 예산 소진: 판정은 보존하고 코칭·꼬리질문은 생략한다 (설계 §2.5)
+                    span.set(budget_exhausted=True)
+                    return {"coaching": None, "coaching_skipped": True}
 
         def decide_node(state: TurnState) -> dict:
             if state["coaching_skipped"]:
