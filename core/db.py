@@ -46,6 +46,20 @@ MIGRATIONS: list[str] = [
         PRIMARY KEY (owner_id, scope, key)
     )
     """,
+    # 2: 하루 공용 예산, 방문자별 세션 수 (M0 S3)
+    """
+    CREATE TABLE budget_daily (
+        day  TEXT PRIMARY KEY,                     -- 한국 시간 기준 YYYY-MM-DD
+        used INTEGER NOT NULL
+    );
+    CREATE TABLE visitor_daily (
+        day   TEXT NOT NULL,
+        kind  TEXT NOT NULL,                       -- owner | ip
+        key   TEXT NOT NULL,
+        count INTEGER NOT NULL,
+        PRIMARY KEY (day, kind, key)
+    )
+    """,
 ]
 
 

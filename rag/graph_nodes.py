@@ -1,4 +1,5 @@
 # 실제로 검색하고, Gemini를 호출하고, 분기를 판단하는 진짜 로직이 전부 여기 있음
+from core.llm import get_llm
 from rag.graph_state import InterviewState
 from rag.llm_utils import extract_text
 from rag.vectorstore import get_interview_kb_retriever
@@ -53,13 +54,11 @@ def out_of_scope_node(state: InterviewState) -> dict:
 
 def judge_node(state: InterviewState) -> dict:
     """context를 참고해 answer를 평가한다. retrieval_node 이후에 실행되어야 한다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import EVALUATION_PROMPT
     from rag.schemas import EvaluationResult
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("judge")
     # Gemini가 무조건 EvaluationResult 스키마(technical_score, improvements 등)에 맞는 구조화된 객체를 반환하게 함
     structured_llm = llm.with_structured_output(EvaluationResult)
 
@@ -90,13 +89,11 @@ def user_docs_retrieval_node(state: InterviewState) -> dict:
 
 def generation_node(state: InterviewState) -> dict:
     """context를 기반으로 면접 질문 5개를 생성한다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import QUESTION_GENERATION_PROMPT
     from rag.schemas import InterviewQuestions
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("planner")
     # judge_node와 같은 기법: Gemini가 InterviewQuestions 스키마(questions 리스트)에 맞춰 반환하게 강제
     structured_llm = llm.with_structured_output(InterviewQuestions)
 
@@ -117,13 +114,11 @@ ADVANCED_THRESHOLD = 7       # 이 값 이상이면 심화 질문
 def learning_tip_node(state: InterviewState) -> dict:
     """평가 결과의 약점(improvements)을 보완할 학습 팁을 생성한다.
     followup_node보다 먼저 실행되어, 여기서 정한 topic을 Followup이 이어받는다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import LEARNING_TIP_PROMPT
     from rag.schemas import LearningTip
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("coach")
     structured_llm = llm.with_structured_output(LearningTip)
 
     # judge가 채운 약점 목록(improvements)을 "- 항목" 불릿 문자열로 만들어 프롬프트에 넣음
@@ -143,12 +138,10 @@ def followup_node(state: InterviewState) -> dict:
     """learning_tip_node가 정한 topic을 그대로 겨냥한 꼬리질문을 생성한다.
     출력이 질문 문자열 하나뿐이라 다른 노드와 달리 with_structured_output()을
     쓰지 않고 일반 텍스트로 받은 뒤 extract_text()로 정리한다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import FOLLOWUP_PROMPT
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("coach")
 
     # 순차 설계의 핵심: improvements를 다시 해석하지 않고, 앞 노드가 정한 topic을 그대로 이어받음
     # → 학습 팁과 꼬리질문이 항상 같은 주제를 겨냥하게 됨
@@ -175,13 +168,11 @@ def followup_node(state: InterviewState) -> dict:
 def fundamentals_node(state: InterviewState) -> dict:
     """0~3점 경로. 개념을 거의 모르는 상태이므로 학습 방향 제시(Learning Tip)가 아니라
     개념 자체를 [Reference] 범위 안에서 설명해준다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import FUNDAMENTALS_PROMPT
     from rag.schemas import ConceptExplanation
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("coach")
     structured_llm = llm.with_structured_output(ConceptExplanation)
 
     prompt_value = FUNDAMENTALS_PROMPT.invoke({
@@ -197,13 +188,11 @@ def fundamentals_node(state: InterviewState) -> dict:
 def advanced_question_node(state: InterviewState) -> dict:
     """7~10점 경로. 이미 정확히 답했으므로 보완할 약점이 없다.
     코칭 대신 한 단계 깊은 심화 질문을 던져 이해의 깊이를 확인한다."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
 
-    from rag.config import GEMINI_MODEL
     from rag.prompts import ADVANCED_QUESTION_PROMPT
     from rag.schemas import AdvancedQuestion
 
-    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL)
+    llm = get_llm("coach")
     structured_llm = llm.with_structured_output(AdvancedQuestion)
 
     prompt_value = ADVANCED_QUESTION_PROMPT.invoke({

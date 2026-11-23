@@ -29,7 +29,10 @@ GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-001"
 def get_gemini_embeddings():
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-    return GoogleGenerativeAIEmbeddings(
+    from core.llm import get_embedder
+
+    # 외부 API 호출이라 생성 모델과 같은 예산 게이트를 지나게 감싼다 (설계 §7.0)
+    return get_embedder(GoogleGenerativeAIEmbeddings(
         model=GEMINI_EMBEDDING_MODEL,
         google_api_key=GEMINI_API_KEY,
-    )
+    ))

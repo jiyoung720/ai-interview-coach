@@ -15,8 +15,10 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from core.budget import BudgetGate
 from core.config import Settings, load_settings
 from core.db import init_db
+from core.llm import configure_budget
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -27,7 +29,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         init_db(settings.db_path)
+        # 모든 외부 모델 호출이 이 게이트를 지난다 (core/llm.py)
+        configure_budget(BudgetGate(settings.db_path, settings.daily_llm_budget))
         yield
+        configure_budget(None)
 
     app = FastAPI(title="AI Interview Coach", lifespan=lifespan)
     app.state.settings = settings

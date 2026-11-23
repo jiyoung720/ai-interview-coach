@@ -18,6 +18,7 @@ class Settings:
     app_mode: str = "demo"
     secret_key: str | None = None
     data_dir: Path = Path("data")
+    daily_llm_budget: int = 300          # 하루 공용 외부 호출 상한 (설계 §2.5, M1 측정 후 조정)
 
     @property
     def is_demo(self) -> bool:
@@ -51,4 +52,5 @@ def load_settings(env: dict | None = None) -> Settings:
         app_mode=(env.get("APP_MODE") or "demo").strip().lower(),
         secret_key=env.get("SECRET_KEY") or None,
         data_dir=Path(env.get("DATA_DIR") or "data"),
+        daily_llm_budget=int(env.get("DAILY_LLM_BUDGET") or 300),
     ).validate()
