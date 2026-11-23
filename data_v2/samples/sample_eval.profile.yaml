@@ -1,0 +1,32 @@
+# 미리 만든 프로필 (데모용). resume_span은 이력서 원문에 그대로 있어야 한다.
+sample_id: sample_eval
+summary: 상담 요약 LLM의 자동 평가 파이프라인과 API 비용 관리를 경험한 데이터 분석 인턴 출신
+projects:
+  - id: p1
+    name: 상담 요약 품질 평가 파이프라인
+    role: 데이터 분석 인턴
+    tech: [Python, pandas, OpenAI API]
+    outcomes:
+      - 사람 채점 100건과 판정 일치율 비교
+      - 길이 편향 완화 기준 추가
+    resume_span: "LLM을 채점자로 쓰는 자동 평가를 도입하면서, 상담원 3명이 직접 채점한 100건과 비교해 판정 일치율을 확인했다."
+  - id: p2
+    name: LLM API 비용 대시보드
+    role: 개인 프로젝트
+    tech: [Python, SQL, Streamlit]
+    outcomes:
+      - 응답 캐시로 하루 API 호출 수 감소
+    resume_span: "같은 질문이 반복되는 FAQ 봇에 응답 캐시를 붙여 하루 API 호출 수를 줄였다."
+experience_questions:
+  - id: eq1
+    project_id: p1
+    question: "LLM 채점 결과를 사람 채점과 비교하셨는데, 그 결과를 보고 무엇을 바꿨나요?"
+    rubric_items: [decision_basis, outcome]
+  - id: eq2
+    project_id: p1
+    question: "채점 모델의 길이 편향은 어떻게 발견했나요?"
+    rubric_items: [specificity]
+  - id: eq3
+    project_id: p2
+    question: "FAQ 봇에 캐시를 붙이면서 고려한 다른 방법이나 감수한 점이 있나요?"
+    rubric_items: [alternatives]
