@@ -12,8 +12,14 @@ services:
     image: jiyoung720/ai-interview-coach:latest
     # 맥(arm64)에서 만든 이미지를 amd64 EC2에서 돌리려면 빌드 시점에
     # --platform linux/amd64를 지정해야 한다. 안 그러면 exec format error가 난다.
-    ports:
-      - "8000:8000"
+    #
+    # 앱 포트 8000은 외부에 열지 않는다. 바깥에서는 nginx(443)로만 들어온다 (첫 공개 조건).
+    expose:
+      - "8000"
+    # nginx 뒤에 있으므로 X-Forwarded-For를 믿는다. 8000이 외부에 닫혀 있어 nginx만 이 헤더를 보낼 수 있다.
+    # 워커는 반드시 1개 (세션 잠금이 프로세스 안의 잠금).
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1",
+              "--proxy-headers", "--forwarded-allow-ips", "*"]
     # 비밀값은 이미지에 굽지 않고 런타임에 주입한다. EC2에 .env를 따로 만들어야 한다
     env_file:
       - .env
@@ -35,6 +41,35 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # HTTPS 종료. ${APP_DOMAIN}은 EC2의 .env에 둔다 (예: my-coach.duckdns.org). 절차: docs/deploy_https.md
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - APP_DOMAIN=${APP_DOMAIN}
+    volumes:
+      - ./deploy/nginx/templates:/etc/nginx/templates:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    # 갱신된 인증서를 반영하려고 6시간마다 설정을 다시 읽는다
+    command: ["/bin/sh", "-c", "while :; do sleep 6h; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # 인증서 자동 갱신. 최초 발급은 docs/deploy_https.md의 standalone 절차로 한 번 한다
+  certbot:
+    image: certbot/certbot:v2.11.0
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"]
+    restart: unless-stopped
+
 volumes:
   chroma_data:
   app_data:
+  certbot_conf:
+  certbot_www:

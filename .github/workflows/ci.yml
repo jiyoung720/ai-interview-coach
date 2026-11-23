@@ -138,15 +138,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # EC2에 필요한 건 compose 파일 하나뿐이다(.env는 비밀값이라 서버에 직접 둔다).
+      # EC2에 필요한 건 compose 파일과 nginx 설정뿐이다(.env는 비밀값이라 서버에 직접 둔다).
       # git pull로 소스 전체를 받던 것을 이 파일 전송으로 대체했다.
-      - name: Copy compose file to EC2
+      - name: Copy compose and nginx config to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: docker-compose-ec2.yml
+          source: docker-compose-ec2.yml,deploy/nginx
           target: ~/ai-interview-coach/
 
       - name: Deploy to EC2
@@ -184,16 +184,23 @@ jobs:
       # 배포 자체가 성공해도 컨테이너가 뜨지 않을 수 있으므로 별도 단계로 둔다.
       # 확인 대상은 `/`(데모 HTML)가 아니라 `/health`다. HTML은 정적 파일이라
       # 앱이 정상인지와 무관하게 응답할 수 있어 헬스체크로 적합하지 않다
+      #
+      # v2부터는 HTTPS 도메인으로 확인하고, 앱 포트 8000이 외부에 닫혀 있는지도 함께 본다(첫 공개 조건).
+      # APP_DOMAIN secret은 M2 첫 배포 때 DuckDNS 도메인을 발급받아 추가한다 (docs/deploy_https.md).
       - name: Verify deployment
         run: |
           for i in $(seq 1 60); do
-            if curl -sf "http://${{ secrets.EC2_HOST }}:8000/health" > /dev/null; then
+            if curl -sf "https://${{ secrets.APP_DOMAIN }}/health" > /dev/null; then
               echo "배포 확인 (${i}초)"
-              curl -s "http://${{ secrets.EC2_HOST }}:8000/health"
+              curl -s "https://${{ secrets.APP_DOMAIN }}/health"
+              if curl -s -m 5 -o /dev/null "http://${{ secrets.EC2_HOST }}:8000/health"; then
+                echo "::error::앱 포트 8000이 외부에서 열려 있습니다. 보안 그룹을 확인하세요."
+                exit 1
+              fi
               exit 0
             fi
             sleep 5
           done
 
-          echo "::error::배포 후 서버가 응답하지 않습니다."
+          echo "::error::배포 후 HTTPS로 서버가 응답하지 않습니다."
           exit 1
