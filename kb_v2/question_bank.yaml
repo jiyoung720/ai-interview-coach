@@ -25,7 +25,7 @@ questions:
     claim_followups:
       - {claim_id: c1, question: "코사인 유사도는 두 벡터의 어떤 점을 비교하나요?"}
       - {claim_id: c2, question: "두 벡터의 방향이 같고 길이만 다르면 L2 거리는 어떻게 되나요?"}
-    deeper: [embedding_similarity_02]
+    deeper: [embedding_similarity_02, embedding_similarity_03]
 
   - id: embedding_similarity_02
     topic: embedding_similarity
@@ -44,6 +44,26 @@ questions:
     claim_followups:
       - {claim_id: c1, question: "엉뚱한 문서가 나왔을 때 원인을 찾으려면 무엇부터 확인해야 할까요?"}
       - {claim_id: c2, question: "원인이 드문 전문용어를 임베딩이 구분하지 못하는 것이라면 어떤 대응을 할 수 있나요?"}
+
+  - id: embedding_similarity_03
+    topic: embedding_similarity
+    difficulty: intermediate
+    question: "RAG에서 쓰던 임베딩 모델을, 기존 문서 벡터와 호환되지 않는 새 모델로 바꾸려면 무엇을 해야 하나요?"
+    kb_doc_ids: [embedding_similarity]
+    key_claims:
+      - claim_id: c1
+        text: 질문 벡터와 문서 벡터가 같은 벡터 공간에 있어야 비교할 수 있다
+        evidence: "질문 벡터와 문서 벡터는 같은 벡터 공간에 있어야 거리를 의미 있게 비교할 수 있다."
+        evidence_doc: embedding_similarity
+      - claim_id: c2
+        text: 검색 대상 문서를 새 모델로 다시 임베딩해 인덱스를 다시 만들어야 한다
+        evidence: "검색 대상 문서도 새 모델로 다시 임베딩해 인덱스를 다시 만들어야 한다."
+        evidence_doc: embedding_similarity
+    # 거리 임계값 재검증은 임계값을 쓰는 시스템에만 해당해서 필수 채점 항목에서 뺐다.
+    # c1은 "같은 모델"이 아니라 "같은 공간"이다. DPR처럼 질문·문서 인코더가 따로인 짝을 말해도 정답이다.
+    claim_followups:
+      - {claim_id: c1, question: "문서 벡터는 그대로 두고 질문만 새 모델로 임베딩해 검색하면 어떤 문제가 생기나요?"}
+      - {claim_id: c2, question: "모델을 바꾼 뒤 이미 저장해 둔 문서 벡터는 어떻게 해야 하나요?"}
 
   # ------------------------------------------------------------ chunking
   - id: chunking_01
@@ -65,7 +85,7 @@ questions:
     claim_followups:
       - {claim_id: c1, question: "chunk가 크면 답변에 필요한 문맥 측면에서 어떤 이점이 있을 수 있나요?"}
       - {claim_id: c2, question: "한 조각에 여러 주제가 섞이면 검색에는 어떤 영향이 있을 수 있나요?"}
-    deeper: [chunking_02]
+    deeper: [chunking_02, chunking_03]
 
   - id: chunking_02
     topic: chunking
@@ -84,6 +104,25 @@ questions:
     claim_followups:
       - {claim_id: c1, question: "overlap이 없으면 조각 경계에서 어떤 문제가 생길 수 있나요?"}
       - {claim_id: c2, question: "overlap을 크게 잡으면 어떤 비용이 생기나요?"}
+
+  - id: chunking_03
+    topic: chunking
+    difficulty: intermediate
+    question: "작은 조각으로 검색하고, LLM에는 그 조각이 속한 더 큰 조각을 넘기는 방식은 어떤 문제를 풀려는 건가요? 대가는 무엇인가요?"
+    kb_doc_ids: [chunking]
+    key_claims:
+      - claim_id: c1
+        text: 검색은 작은 조각으로 정밀하게 하면서 답변에는 넓은 문맥을 주려는 절충이다
+        evidence: "검색은 작은 조각으로 정밀하게 하면서 답변에는 넓은 문맥을 주려는 절충이다."
+        evidence_doc: chunking
+      - claim_id: c2
+        text: 조각 관계 관리, 입력 증가, 담을 수 있는 근거 수 감소 같은 대가를 하나 이상 말한다
+        evidence: "또 큰 조각을 넘기면 LLM 입력이 길어지거나, 같은 입력 길이 안에 담을 수 있는 근거 수가 줄 수 있다."
+        evidence_doc: chunking
+    # c2 근거는 입력 쪽 대가 문장을 대표로 둔다. 바로 앞 문장의 관계 저장·관리 대가를 말해도 정답이다.
+    claim_followups:
+      - {claim_id: c1, question: "검색용 조각과 LLM에 넘기는 조각의 크기를 다르게 두면 어떤 절충을 노리는 건가요?"}
+      - {claim_id: c2, question: "이 방식을 쓰면 어떤 대가가 생길 수 있나요?"}
 
   # ------------------------------------------------------------ 하이브리드 검색과 reranking
   - id: hybrid_rerank_01
@@ -108,7 +147,7 @@ questions:
   - id: hybrid_rerank_02
     topic: hybrid_rerank
     difficulty: intermediate
-    question: "하이브리드 검색에서 두 검색 결과를 어떻게 합치는지, 그리고 그 뒤에 reranking을 붙이는 이유를 설명해 주세요."
+    question: "하이브리드 검색에서 두 검색 결과를 어떻게 합치는지, 그리고 그 뒤에 reranking 모델(예: cross-encoder)을 붙이는 이유와 비용을 설명해 주세요."
     kb_doc_ids: [hybrid_rerank]
     key_claims:
       - claim_id: c1
@@ -127,6 +166,7 @@ questions:
       - {claim_id: c1, question: "키워드 검색 점수와 벡터 검색 점수를 그냥 더하기 어려운 이유와, 대신 쓰는 방법은 무엇인가요?"}
       - {claim_id: c2, question: "1차 검색 뒤에 후보를 다시 평가하면 무엇이 좋아지나요?"}
       - {claim_id: c3, question: "문서가 수백만 개라면 reranking 모델을 어디까지 적용해야 할까요? 그 이유는요?"}
+    # MMR처럼 중복을 줄이는 재정렬은 KB에 있지만, 질문이 reranking "모델"과 그 비용을 물어서 채점 범위 밖이다.
 
   # ------------------------------------------------------------ RAG 파이프라인과 실패 유형
   - id: rag_pipeline_01
@@ -151,7 +191,7 @@ questions:
       - {claim_id: c1, question: "질문이 들어오기 전에 문서는 어떻게 준비해 두나요?"}
       - {claim_id: c2, question: "질문이 들어오면 가장 먼저 무엇을 하나요?"}
       - {claim_id: c3, question: "검색한 자료는 답변을 만들 때 어떻게 쓰이나요?"}
-    deeper: [rag_pipeline_02]
+    deeper: [rag_pipeline_02, rag_pipeline_03]
 
   - id: rag_pipeline_02
     topic: rag_pipeline
@@ -175,6 +215,26 @@ questions:
       - {claim_id: c1, question: "틀린 답의 원인을 찾을 때 어떤 순서로 확인하면 좋을까요?"}
       - {claim_id: c2, question: "검색 단계에서 생기는 실패에는 어떤 모습이 있나요?"}
       - {claim_id: c3, question: "필요한 문장이 최종 컨텍스트에도 들어 있었는데 답이 틀렸다면, 어떤 문제로 볼 수 있나요?"}
+
+  - id: rag_pipeline_03
+    topic: rag_pipeline
+    difficulty: intermediate
+    question: "RAG 답변이 제공한 자료에 없는 내용을 지어낸다면, 프롬프트로 할 수 있는 것과 그 한계는 무엇인가요?"
+    kb_doc_ids: [rag_pipeline]
+    key_claims:
+      - claim_id: c1
+        text: 자료 안에서만 답하기, 모르면 모른다고 말하기, 관련 구절 먼저 뽑기, 근거 인용 같은 근거 제한 지시를 하나 이상 말한다
+        evidence: "생성 단계에서는 제공한 자료 안에서만 답하게 하거나, 자료에 답이 없으면 모른다고 말하게 하거나, 답하기 전에 관련 구절을 먼저 뽑게 하거나, 답변의 주장마다 근거 자료를 인용하게 하는 지시를 쓸 수 있다."
+        evidence_doc: rag_pipeline
+      - claim_id: c2
+        text: 지시는 지어낼 가능성을 줄일 수 있지만 없애지는 못한다
+        evidence: "이런 지시는 근거에 없는 내용을 지어낼 가능성을 줄일 수 있지만 없애지는 못한다."
+        evidence_doc: rag_pipeline
+    # c1의 예시는 닫힌 목록이 아니다. 같은 목적의 다른 유효한 지시도 인정한다.
+    # 근거 충실도 평가·인용 검증 같은 후속 확인은 KB에 있지만, 질문이 "한계"까지만 물어서 필수에서 뺐다.
+    claim_followups:
+      - {claim_id: c1, question: "모델이 자료 밖 내용을 덧붙이지 않게 하려면 프롬프트에 어떤 지시를 넣을 수 있나요?"}
+      - {claim_id: c2, question: "그런 지시를 적용한 뒤에도 어떤 오류가 남을 수 있나요?"}
 
   # ------------------------------------------------------------ structured output
   - id: structured_output_01

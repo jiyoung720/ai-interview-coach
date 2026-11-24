@@ -11,7 +11,9 @@ sources:
     url: https://docs.opensearch.org/latest/search-plugins/search-pipelines/normalization-processor/
   - title: "Sentence Transformers - Retrieve & Re-Rank"
     url: https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html
-last_reviewed: 2026-11-23
+  - title: "The Use of MMR, Diversity-Based Reranking for Reordering Documents and Producing Summaries (Carbonell & Goldstein, 1998)"
+    url: https://www.cs.cmu.edu/~jgc/publication/The_Use_MMR_Diversity_Based_LTMIR_1998.pdf
+last_reviewed: 2026-11-24
 ---
 # 하이브리드 검색과 reranking
 
@@ -23,3 +25,6 @@ BM25는 질문의 단어가 문서에 얼마나 자주 나오는지(같은 단�
 
 ## reranking
 reranking은 1차 검색이 가져온 후보를 더 정교한 모델로 다시 평가해 상위 결과의 품질을 높이려는 단계다. 흔한 구현은 질문과 후보 문서를 한 번에 입력해 관련도를 계산하는 cross-encoder다. 질문과 문서를 따로 임베딩해 비교하는 bi-encoder보다 대체로 더 정교하게 관련도를 판단하지만, 효과는 데이터와 모델에 따라 다르다. 후보마다 모델을 돌려야 해서 비용과 지연이 크므로, 큰 문서 집합에서는 보통 1차 검색의 상위 후보에만 적용한다. 후보가 적다면 전부 다시 평가할 수도 있다.
+
+## 비슷한 결과가 겹칠 때
+overlap을 둔 조각이나 여러 문서에 반복된 설명 때문에 상위 결과가 거의 같은 내용으로 채워질 수 있다. 그러면 여러 조각을 넣어도 추가로 얻는 정보가 적을 수 있다. MMR(Maximal Marginal Relevance)은 질문과의 관련도와 이미 고른 결과와의 유사도를 함께 고려해, 관련 있으면서 서로 덜 겹치는 결과를 고르는 방법이다. 인덱싱 전에 중복 문서를 정리하는 방법도 있다.
