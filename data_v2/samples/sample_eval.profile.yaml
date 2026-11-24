@@ -8,7 +8,7 @@ projects:
     tech: [Python, pandas, OpenAI API]
     outcomes:
       - 사람 채점 100건과 판정 일치율 비교
-      - 길이 편향 완화 기준 추가 후 같은 100건으로 재확인
+      - 길이 편향 완화 기준 추가 후 같은 100건에서 변경 전후 일치율 비교
     resume_span: "LLM을 채점자로 쓰는 자동 평가를 도입하면서, 상담원 3명이 직접 채점한 100건과 비교해 판정 일치율을 확인했다."
   - id: p2
     name: LLM API 비용 대시보드
@@ -22,10 +22,10 @@ experience_questions:
     project_id: p1
     question: "채점 모델의 길이 편향을 발견한 뒤 무엇을 왜 바꿨고, 바꾼 뒤에는 어떻게 확인했나요?"
     rubric_items: [decision_basis, outcome]
-    resume_span: "기준을 추가한 뒤 같은 100건으로 다시 비교해 판정 일치율이 올랐는지 확인했다."
+    resume_span: "채점 모델이 긴 요약을 더 높게 평가하는 경향을 발견하고, 채점 기준에 길이로 점수를 올리지 말라는 항목을 추가했다."
   - id: eq2
     project_id: p1
-    question: "채점 모델이 긴 요약을 더 높게 평가한다는 것은 구체적으로 어떻게 발견했나요?"
+    question: "채점 모델이 긴 요약을 더 높게 평가한다는 것은 구체적으로 어떻게 발견했나요? 품질이 비슷한 요약에서도 길이 차이가 점수에 영향을 준다고 어떻게 판단했나요?"
     rubric_items: [specificity]
     resume_span: "채점 모델이 긴 요약을 더 높게 평가하는 경향을 발견하고, 채점 기준에 길이로 점수를 올리지 말라는 항목을 추가했다."
   - id: eq3

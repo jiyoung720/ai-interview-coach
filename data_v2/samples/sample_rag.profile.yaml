@@ -3,7 +3,7 @@ sample_id: sample_rag
 summary: RAG 기반 검색 챗봇을 만들며 chunking·임베딩 교체·범위 밖 처리로 검색 품질을 개선한 부트캠프 수료생
 projects:
   - id: p1
-    name: 사내 규정 문서 검색 챗봇
+    name: 규정 문서 검색 챗봇 (공개 공공기관 규정 PDF)
     role: 백엔드·RAG 담당 (4인 팀)
     tech: [Python, FastAPI, LangChain, Chroma]
     outcomes:
@@ -20,12 +20,12 @@ projects:
 experience_questions:
   - id: eq1
     project_id: p1
-    question: "규정 문서 챗봇에서 임베딩 모델을 교체하셨는데, 무엇을 근거로 결정했고 다른 선택지도 검토했나요?"
+    question: "규정 문서 챗봇에서 임베딩 모델을 교체하셨는데, 무엇을 근거로 결정했나요? 기존 모델이나 다른 방법과 비교했을 때 어떤 차이나 감수할 점이 있었나요?"
     rubric_items: [decision_basis, alternatives]
     resume_span: "같은 50문항으로 비교해, 임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체하고 1순위 정답을 31개에서 41개로(62% → 82%) 늘렸다."
   - id: eq2
     project_id: p1
-    question: "chunk를 조항 단위로 바꾼 뒤 검색이 실제로 나아졌는지는 어떻게 확인했나요?"
+    question: "청크를 조항 단위로 바꾼 효과는 어떻게 확인했나요?"
     rubric_items: [outcome]
     resume_span: "처음에는 500자 고정 길이로 chunk를 나눴으나, 조항 단위로 나누도록 바꿔 근거가 여러 chunk로 흩어지는 문제를 줄였다."
   - id: eq3
