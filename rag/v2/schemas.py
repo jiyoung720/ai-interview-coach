@@ -34,6 +34,8 @@ class KeyClaim(BaseModel):
     text: str
     evidence: str                 # KB 문서에서 그대로 가져온 근거 문장
     evidence_doc: str             # 근거 문서 ID (= KB 문서의 topic)
+    # 이 주장을 충족한 것으로 함께 인정할 답의 모습. 주석이 아니라 필드라서 Judge 프롬프트에 그대로 들어간다.
+    also_accept: list[str] = []
 
 
 class ClaimFollowup(BaseModel):
