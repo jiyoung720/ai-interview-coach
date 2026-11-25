@@ -89,6 +89,17 @@ EXPERIENCE_CASES = {
 }
 
 
+RETRIEVAL = {
+    "splits": {"g_hnsw": "dev", "g_extra": "holdout"},
+    "claims": [
+        {"claim_id": "rc1", "text": "HNSW 때문에 빨라집니다", "expected": "unverified", "group": "g_hnsw",
+         "expected_evidence_doc": None, "source": {"case_id": "cc1", "side_id": "s1"}},
+        {"claim_id": "rc2", "text": "B7에서 보강한 경계 주장", "expected": "supported", "group": "g_extra",
+         "expected_evidence_doc": "chunking", "tags": ["rare_term"]},
+    ],
+}
+
+
 def write_tree(root: Path, **overrides) -> Path:
     files = {
         "kb_v2/docs/chunking.md": KB_DOC,
@@ -98,6 +109,7 @@ def write_tree(root: Path, **overrides) -> Path:
         "data_v2/samples/sample_a.profile.yaml": PROFILE,
         "eval_v2/concept_cases.yaml": CONCEPT_CASES,
         "eval_v2/experience_cases.yaml": EXPERIENCE_CASES,
+        "eval_v2/retrieval_claims.yaml": RETRIEVAL,
     }
     files.update(overrides)
     for rel, content in files.items():
@@ -180,6 +192,55 @@ def test_경험_질문의_전제_구간도_이력서에_있어야_한다(tmp_pat
     profile = yaml.safe_load(yaml.safe_dump(PROFILE, allow_unicode=True))
     profile["experience_questions"][0]["resume_span"] = "이력서에 없는 전제"
     assert any("질문 전제" in e for e in errors_of(write_tree(tmp_path, **{"data_v2/samples/sample_a.profile.yaml": profile})))
+
+
+def test_검색_주장은_개념_답변의_질문_밖_주장과_같아야_한다(tmp_path):
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    retrieval["claims"][0]["text"] = "HNSW 덕분에 빨라집니다"
+    errors = errors_of(write_tree(tmp_path, **{"eval_v2/retrieval_claims.yaml": retrieval}))
+    assert any("내용이 다릅니다" in e for e in errors)
+
+
+def test_질문_밖_주장이_검색_평가셋에서_빠지면_오류(tmp_path):
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    del retrieval["claims"][0]
+    errors = errors_of(write_tree(tmp_path, **{"eval_v2/retrieval_claims.yaml": retrieval}))
+    assert any("검색 평가셋에 없습니다" in e for e in errors)
+
+
+def test_검색_주장은_group마다_분할이_있어야_한다(tmp_path):
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    del retrieval["splits"]["g_hnsw"]
+    errors = errors_of(write_tree(tmp_path, **{"eval_v2/retrieval_claims.yaml": retrieval}))
+    assert any("group g_hnsw" in e for e in errors)
+
+
+def test_기대_판정과_근거_문서_유무가_맞아야_한다(tmp_path):
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    retrieval["claims"][1]["expected_evidence_doc"] = None   # supported인데 문서 없음
+    assert any("expected_evidence_doc" in e for e in errors_of(write_tree(tmp_path, **{"eval_v2/retrieval_claims.yaml": retrieval})))
+
+
+def test_같은_질문의_주장은_group이_달라도_같은_분할이다(tmp_path):
+    cases = yaml.safe_load(yaml.safe_dump(CONCEPT_CASES, allow_unicode=True))
+    cases["concept"][0]["intended"]["side"].append(
+        {"side_id": "s2", "quote": "문맥이 더 담깁니다", "expected": "supported", "group": "g_other",
+         "expected_evidence_doc": "chunking"})
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    retrieval["splits"]["g_other"] = "holdout"
+    retrieval["claims"].append(
+        {"claim_id": "rc3", "text": "문맥이 더 담깁니다", "expected": "supported", "group": "g_other",
+         "expected_evidence_doc": "chunking", "source": {"case_id": "cc1", "side_id": "s2"}})
+    errors = errors_of(write_tree(tmp_path, **{"eval_v2/concept_cases.yaml": cases,
+                                               "eval_v2/retrieval_claims.yaml": retrieval}))
+    assert any("같은 질문 chunking_01" in e for e in errors)
+
+
+def test_주장이_없는_분할_키로는_양쪽_분할을_채울_수_없다(tmp_path):
+    retrieval = yaml.safe_load(yaml.safe_dump(RETRIEVAL, allow_unicode=True))
+    del retrieval["claims"][1]   # holdout group(g_extra)의 키만 남는다
+    report = check(write_tree(tmp_path, **{"eval_v2/retrieval_claims.yaml": retrieval}), today=TODAY)
+    assert any("한쪽에만" in w for w in report.warnings)
 
 
 def test_레포의_실제_v2_데이터가_검사를_통과한다():

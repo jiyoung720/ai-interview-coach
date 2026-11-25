@@ -5,7 +5,8 @@
 - key_evidence: 핵심 주장의 근거 문장이 근거 문서 본문에 **그대로** 있는가, 문서 ID가 존재하는가
 - 참조 무결성: claim_followups·deeper·kb_doc_ids, 경험 질문의 루브릭 항목, 답변이 가리키는 질문
 - 인용: 질문 밖 주장과 모순 인용이 답변·이력서 원문에 그대로 있는가
-- 분할: 답변이 속한 토픽·이력서마다 dev/holdout이 정해져 있는가
+- 분할: 답변이 속한 토픽·이력서마다 dev/holdout이 정해져 있는가 (검색 평가 주장은 group마다)
+- 검색 평가 주장: 개념 답변의 질문 밖 주장과 하나씩 대응하고 내용이 같은가
 
 무엇을 검사하지 않나
 - 근거 문장이 주장을 **실제로 뒷받침하는지**는 사람이 검수한다. CI는 문장이 있는지만 본다.
@@ -22,7 +23,7 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from rag.v2.schemas import CaseSet, KBDocMeta, QuestionBank, Rubric, SampleProfile
+from rag.v2.schemas import CaseSet, KBDocMeta, QuestionBank, RetrievalSet, Rubric, SampleProfile
 
 STALE_AFTER = timedelta(days=180)   # 빨리 변하는 분야라 반년이 지나면 다시 본다 (설계 §6.1)
 
@@ -150,6 +151,7 @@ def check(root: Path, today: date | None = None) -> Report:
         samples[sample_id] = (profile, resume)
 
     # ---- 캘리브레이션 답변
+    concept_cases: CaseSet | None = None
     for name in ("concept_cases.yaml", "experience_cases.yaml"):
         path = root / "eval_v2" / name
         if not path.exists() or (raw := _load_yaml(path, report)) is None:
@@ -161,8 +163,68 @@ def check(root: Path, today: date | None = None) -> Report:
             continue
         _check_concept_cases(cases, bank, docs, report)
         _check_experience_cases(cases, samples, report)
+        if name == "concept_cases.yaml":
+            concept_cases = cases
+
+    # ---- 검색 평가 주장
+    path = root / "eval_v2" / "retrieval_claims.yaml"
+    if path.exists() and (raw := _load_yaml(path, report)) is not None:
+        try:
+            retrieval = RetrievalSet.model_validate(raw)
+        except ValidationError as error:
+            report.errors.append(f"retrieval_claims.yaml: {error}")
+        else:
+            _check_retrieval_claims(retrieval, concept_cases, docs, report)
 
     return report
+
+
+def _check_retrieval_claims(retrieval: RetrievalSet, concept_cases: CaseSet | None,
+                            docs: dict, report: Report) -> None:
+    sides = {}   # (case_id, side_id) → SideClaim
+    question_of = {}   # case_id → question_id
+    if concept_cases is not None:
+        for case in concept_cases.concept:
+            question_of[case.case_id] = case.question_id
+            for side in case.intended.side:
+                sides[(case.case_id, side.side_id)] = side
+
+    seen_ids, used_sources, used_groups = set(), set(), set()
+    question_splits: dict[str, set] = {}   # 같은 질문에서 나온 주장이 어느 분할에 들어갔나
+    for claim in retrieval.claims:
+        if claim.claim_id in seen_ids:
+            report.errors.append(f"검색 주장 claim_id 중복: {claim.claim_id}")
+        seen_ids.add(claim.claim_id)
+        used_groups.add(claim.group)
+        if claim.group not in retrieval.splits:
+            report.errors.append(f"{claim.claim_id}: group {claim.group}의 dev/holdout 분할이 정해지지 않았습니다")
+        if claim.expected_evidence_doc and claim.expected_evidence_doc not in docs:
+            report.errors.append(f"{claim.claim_id}: 기대 근거 문서가 없습니다: {claim.expected_evidence_doc}")
+        if claim.source is None:
+            continue
+        key = (claim.source.case_id, claim.source.side_id)
+        if key in used_sources:
+            report.errors.append(f"{claim.claim_id}: 같은 질문 밖 주장을 두 번 가리킵니다: {key}")
+        used_sources.add(key)
+        if claim.source.case_id in question_of and claim.group in retrieval.splits:
+            question_splits.setdefault(question_of[claim.source.case_id], set()).add(retrieval.splits[claim.group])
+        side = sides.get(key)
+        if side is None:
+            report.errors.append(f"{claim.claim_id}: 개념 답변에 없는 질문 밖 주장을 가리킵니다: {key}")
+        elif (claim.text, claim.expected, claim.group, claim.expected_evidence_doc) != (
+                side.quote, side.expected, side.group, side.expected_evidence_doc):
+            report.errors.append(f"{claim.claim_id}: 개념 답변의 질문 밖 주장과 내용이 다릅니다: {key}")
+
+    for key in sides.keys() - used_sources:
+        report.errors.append(f"개념 답변의 질문 밖 주장이 검색 평가셋에 없습니다: {key}")
+    for question_id, splits in sorted(question_splits.items()):
+        if len(splits) > 1:
+            report.errors.append(f"retrieval_claims.yaml: 같은 질문 {question_id}에서 나온 주장이 dev와 holdout으로 갈라졌습니다")
+    for group in retrieval.splits.keys() - used_groups:
+        report.warnings.append(f"retrieval_claims.yaml: 주장이 없는 group의 분할입니다: {group}")
+    used_splits = {retrieval.splits[g] for g in used_groups if g in retrieval.splits}
+    if used_splits and len(used_splits) < 2:
+        report.warnings.append("retrieval_claims.yaml: 실제 주장이 dev와 holdout 중 한쪽에만 있습니다")
 
 
 def _check_concept_cases(cases: CaseSet, bank: dict, docs: dict, report: Report) -> None:

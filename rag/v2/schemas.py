@@ -116,8 +116,20 @@ class SideClaim(BaseModel):
     side_id: str
     quote: str                    # 답변 안에 그대로 있어야 한다
     expected: SideStatus
-    group: str                    # 같은 주장·의역·반대 주장·같은 출제 질문은 같은 그룹
+    group: str                    # 같은 주장·의역·반대 주장은 같은 그룹 (질문이 달라도)
     expected_evidence_doc: str | None = None   # None이면 주장 단위로 "KB 근거 없음"
+
+    @model_validator(mode="after")
+    def _doc_matches_expected(self):
+        return _check_doc_matches_expected(self)
+
+
+def _check_doc_matches_expected(claim):
+    """뒷받침·충돌이면 기대 근거 문서가 있어야 하고, 근거 없음이면 문서가 없어야 한다."""
+    has_doc = claim.expected_evidence_doc is not None
+    if (claim.expected == "unverified") == has_doc:
+        raise ValueError(f"expected={claim.expected}와 expected_evidence_doc={claim.expected_evidence_doc}이 맞지 않습니다")
+    return claim
 
 
 class ConceptIntent(BaseModel):
@@ -156,6 +168,33 @@ class ExperienceCase(BaseModel):
     quality: Literal["vague", "shallow", "solid"]
     answer: str
     intended: ExperienceIntent
+
+
+class RetrievalSource(BaseModel):
+    case_id: str
+    side_id: str
+
+
+class RetrievalClaim(BaseModel):
+    """주장 → KB 조각 검색 평가셋의 주장 하나 (B7). 조각 단위 라벨은 검색 결과가 나온 뒤 붙인다."""
+    claim_id: str
+    text: str                     # 검색어로 쓰는 문장 (답변에서 온 주장은 인용 그대로)
+    expected: SideStatus
+    group: str
+    expected_evidence_doc: str | None = None   # None이면 주장 단위로 "KB 근거 없음"
+    source: RetrievalSource | None = None      # 개념 답변의 side에서 왔으면 그 위치. B7에서 보강한 주장은 None
+    tags: list[str] = []          # 예: rare_term (저빈도 용어 부분집합)
+
+    @model_validator(mode="after")
+    def _doc_matches_expected(self):
+        return _check_doc_matches_expected(self)
+
+
+class RetrievalSet(BaseModel):
+    """eval_v2/retrieval_claims.yaml. 분할은 토픽이 아니라 group 단위로 정하고,
+    같은 질문에서 나온 주장은 group이 달라도 같은 분할에 둔다 (설계 §9.1)."""
+    splits: dict[str, Split]      # group → split
+    claims: list[RetrievalClaim]
 
 
 class CaseSet(BaseModel):

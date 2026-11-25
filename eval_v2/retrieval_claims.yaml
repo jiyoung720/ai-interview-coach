@@ -1,0 +1,321 @@
+# 검색 평가 주장 (B4에서 만들고 B7에서 쓴다). 설계 §7.8, §9.
+# - 개념 답변(concept_cases.yaml)의 질문 밖 주장(side)을 하나씩 옮겼다. text는 답변 인용 그대로이고,
+#   expected·group·expected_evidence_doc도 원래 값과 같아야 한다 (check_data가 대조한다).
+# - expected_evidence_doc이 null이면 주장 전체가 "KB 근거 없음"이다. 개별 조각이 무관하다는 뜻이 아니다.
+# - group은 같은 명제(같은 주장·의역·반대 주장)다. 예: 인용문이 자료에 있는지 확인(rag_quote_exists)과
+#   출처를 달았으니 뒷받침된다(rag_citation_verify)는 다른 명제라 group을 나눈다.
+# - 분할은 토픽이 아니라 group 단위이고, 같은 질문에서 나온 주장은 group이 달라도 같은 분할에 둔다 (설계 §9.1,
+#   check_data가 확인). 임계값은 dev에서만 조정한다. holdout은 뒷받침·충돌·근거 없음이 모두 들어간 소규모 확인용이다.
+# - 검색 대상은 KB 문서 본문이다 (frontmatter의 출처 제목은 색인하지 않는다). 그래서 출처 제목에만 이름이 있는
+#   ParentDocumentRetriever 주장(ch_parent_impl)은 "KB 근거 없음"이다.
+# - B7 조각 라벨에서는 expected_evidence_doc을 대표 문서로만 본다. 다른 문서의 조각도 판정할 수 있으면 근거로 인정한다
+#   (예: 드문 용어는 embedding_similarity와 hybrid_rerank 양쪽, 최대 입력 길이는 embedding_similarity와 chunking 양쪽).
+# - B7에서 첫 검색을 돌린 뒤, 인접하지만 판정할 수 없는 경계 주장과 저빈도 용어 주장(tags: [rare_term])을
+#   source 없이 보강한다. 조각 단위 라벨(뒷받침 / 반박 / 관련 있지만 판정 불가)도 그때 붙인다.
+
+splits:
+  es_norm_rank: dev
+  es_rare_terms: dev
+  hr_keyword_strength: dev
+  hr_score_fusion: dev
+  es_threshold: dev
+  es_max_len: dev
+  ch_size_experiment: holdout
+  ch_semantic: holdout
+  ch_overlap_ratio: dev
+  ch_parent_impl: holdout
+  lj_swap: dev
+  lj_temp0: dev
+  lj_parse_fail: dev
+  rag_vs_finetune: holdout
+  rag_citation_verify: holdout
+  rag_stage_logs: dev
+  rag_quote_exists: holdout
+  so_pydantic: dev
+  so_schema_truth: dev
+  so_enum_desc: dev
+  so_parse_needed: dev
+  pi_indirect: dev
+  pi_direct_indirect: dev
+  pi_output_validation: dev
+  hr_bm25_saturation: dev
+  hr_rrf_k: holdout
+  hr_rrf_score: holdout
+  tc_tool_desc: holdout
+  tc_builtin: holdout
+  tc_repeat_normal: dev
+  tc_react: dev
+
+claims:
+  - claim_id: rc001
+    text: "벡터를 모두 길이 1로 정규화하면 코사인 순서와 L2 거리 순서가 같아집니다"
+    expected: supported
+    group: es_norm_rank
+    expected_evidence_doc: embedding_similarity
+    source: {case_id: es01_solid, side_id: s1}
+
+  - claim_id: rc002
+    text: "정규화를 하지 않아도 코사인과 L2의 순위는 항상 같아서"
+    expected: contradicted
+    group: es_norm_rank
+    expected_evidence_doc: embedding_similarity
+    source: {case_id: es01_side_wrong, side_id: s1}
+
+  - claim_id: rc003
+    text: "임베딩은 의미를 보니까 전문용어도 다 이해합니다"
+    expected: contradicted
+    group: es_rare_terms
+    expected_evidence_doc: embedding_similarity
+    source: {case_id: es02_misconception, side_id: s1}
+
+  - claim_id: rc004
+    text: "키워드 검색은 정확한 용어나 에러 코드처럼 그대로 일치해야 하는 검색에 강해서"
+    expected: supported
+    group: hr_keyword_strength
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: es02_solid, side_id: s1}
+
+  - claim_id: rc005
+    text: "키워드 검색 점수와 벡터 검색 점수는 척도가 달라도 그대로 더해서 합치면 됩니다"
+    expected: contradicted
+    group: hr_score_fusion
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: es02_side_wrong, side_id: s1}
+
+  - claim_id: rc006
+    text: "거리 임계값으로 답을 보류하는 RAG에서 임베딩 모델을 바꾸면, 거리 분포가 모델마다 달라서 그 임계값도 다시 검증해야 합니다"
+    expected: supported
+    group: es_threshold
+    expected_evidence_doc: embedding_similarity
+    source: {case_id: es03_solid, side_id: s1}
+
+  - claim_id: rc007
+    text: "임베딩 모델은 입력 길이 제한이 없으니까"
+    expected: contradicted
+    group: es_max_len
+    expected_evidence_doc: embedding_similarity
+    source: {case_id: es03_side_wrong, side_id: s1}
+
+  - claim_id: rc008
+    text: "청크의 적당한 크기는 문서 종류마다 달라서 실험으로 정해야 한다"
+    expected: supported
+    group: ch_size_experiment
+    expected_evidence_doc: chunking
+    source: {case_id: ch01_solid, side_id: s1}
+
+  - claim_id: rc009
+    text: "semantic chunking을 쓰면 고정 길이 분할보다 항상 검색 성능이 좋습니다"
+    expected: contradicted
+    group: ch_semantic
+    expected_evidence_doc: chunking
+    source: {case_id: ch01_side_wrong, side_id: s1}
+
+  - claim_id: rc010
+    text: "overlap 비율은 정해진 정답이 있다기보다 문서에 맞춰 실험으로 정합니다"
+    expected: unverified
+    group: ch_overlap_ratio
+    expected_evidence_doc: null
+    source: {case_id: ch02_solid, side_id: s1}
+
+  - claim_id: rc011
+    text: "청크 크기는 임베딩 모델의 최대 입력 길이를 넘어도 모델이 알아서 전부 반영하니까"
+    expected: contradicted
+    group: es_max_len
+    expected_evidence_doc: chunking
+    source: {case_id: ch02_side_wrong, side_id: s1}
+
+  - claim_id: rc012
+    text: "LangChain에는 작은 청크로 검색하고 더 큰 문서를 돌려주는 ParentDocumentRetriever가 있습니다"
+    expected: unverified
+    group: ch_parent_impl
+    expected_evidence_doc: null
+    source: {case_id: ch03_solid, side_id: s1}
+
+  - claim_id: rc013
+    text: "semantic chunking을 쓰면 추가 비용 없이 늘 더 좋은 결과가 나옵니다"
+    expected: contradicted
+    group: ch_semantic
+    expected_evidence_doc: chunking
+    source: {case_id: ch03_side_wrong, side_id: s1}
+
+  - claim_id: rc014
+    text: "순서를 바꿔 두 번 채점해 보면 위치 편향을 확인할 수 있습니다"
+    expected: supported
+    group: lj_swap
+    expected_evidence_doc: llm_judge
+    source: {case_id: lj01_solid, side_id: s1}
+
+  - claim_id: rc015
+    text: "temperature를 0으로 두면 같은 입력에는 항상 같은 점수가 나오니까"
+    expected: contradicted
+    group: lj_temp0
+    expected_evidence_doc: llm_judge
+    source: {case_id: lj01_side_wrong, side_id: s1}
+
+  - claim_id: rc016
+    text: "판정 응답을 해석하지 못한 경우는 0점으로 넣지 않고 실패로 따로 기록합니다"
+    expected: supported
+    group: lj_parse_fail
+    expected_evidence_doc: llm_judge
+    source: {case_id: lj02_solid, side_id: s1}
+
+  - claim_id: rc017
+    text: "판정 응답을 해석하지 못하면 그냥 0점으로 기록하면 됩니다"
+    expected: contradicted
+    group: lj_parse_fail
+    expected_evidence_doc: llm_judge
+    source: {case_id: lj02_side_wrong, side_id: s1}
+
+  - claim_id: rc018
+    text: "RAG는 모델 가중치를 바꾸지 않고 검색 대상 자료만 바꿔 최신 정보를 반영할 수 있다"
+    expected: supported
+    group: rag_vs_finetune
+    expected_evidence_doc: rag_pipeline
+    source: {case_id: rag01_solid, side_id: s1}
+
+  - claim_id: rc019
+    text: "RAG는 출처를 보여 주니까 답변이 그 출처와 맞는지는 따로 확인할 필요가 없습니다"
+    expected: contradicted
+    group: rag_citation_verify
+    expected_evidence_doc: rag_pipeline
+    source: {case_id: rag01_side_wrong, side_id: s1}
+
+  - claim_id: rc020
+    text: "검색 결과, 최종 컨텍스트, 생성 답변처럼 RAG 단계마다 중간 결과를 로그로 남겨 두는 게 좋습니다"
+    expected: unverified
+    group: rag_stage_logs
+    expected_evidence_doc: null
+    source: {case_id: rag02_solid, side_id: s1}
+
+  - claim_id: rc021
+    text: "temperature를 0으로 두면 항상 같은 답이 나오니까 한 번만 돌려 보면 됩니다"
+    expected: contradicted
+    group: lj_temp0
+    expected_evidence_doc: llm_judge
+    source: {case_id: rag02_side_wrong, side_id: s1}
+
+  - claim_id: rc022
+    text: "인용한 문장이 실제 자료에 있는지 코드로 확인합니다"
+    expected: supported
+    group: rag_quote_exists
+    expected_evidence_doc: rag_pipeline
+    source: {case_id: rag03_solid, side_id: s1}
+
+  - claim_id: rc023
+    text: "답변이 출처를 인용했다면 그 주장은 자료가 뒷받침한다고 봐도 됩니다"
+    expected: contradicted
+    group: rag_citation_verify
+    expected_evidence_doc: rag_pipeline
+    source: {case_id: rag03_side_wrong, side_id: s1}
+
+  - claim_id: rc024
+    text: "structured output 스키마는 Pydantic 모델로 정의해 넘길 수도 있습니다"
+    expected: supported
+    group: so_pydantic
+    expected_evidence_doc: structured_output
+    source: {case_id: so01_solid, side_id: s1}
+
+  - claim_id: rc025
+    text: "스키마에 맞게 왔다면 내용도 검증된 것이라 따로 확인할 필요가 없습니다"
+    expected: contradicted
+    group: so_schema_truth
+    expected_evidence_doc: structured_output
+    source: {case_id: so01_side_wrong, side_id: s1}
+
+  - claim_id: rc026
+    text: "스키마에 필드 설명과 열거형을 주면 모델이 필드를 더 정확히 채우기는 합니다"
+    expected: supported
+    group: so_enum_desc
+    expected_evidence_doc: structured_output
+    source: {case_id: so02_solid, side_id: s1}
+
+  - claim_id: rc027
+    text: "structured output을 쓰면 JSON 문자열로 받아도 파싱 단계는 아예 필요 없어집니다"
+    expected: contradicted
+    group: so_parse_needed
+    expected_evidence_doc: structured_output
+    source: {case_id: so02_side_wrong, side_id: s1}
+
+  - claim_id: rc028
+    text: "검색 문서나 도구 응답처럼 외부 경로로 들어오는 간접 인젝션도 있습니다"
+    expected: supported
+    group: pi_indirect
+    expected_evidence_doc: prompt_injection
+    source: {case_id: pi01_solid, side_id: s1}
+
+  - claim_id: rc029
+    text: "직접 인젝션과 간접 인젝션은 공격 문장의 내용이 얼마나 위험한지로 구분합니다"
+    expected: contradicted
+    group: pi_direct_indirect
+    expected_evidence_doc: prompt_injection
+    source: {case_id: pi01_side_wrong, side_id: s1}
+
+  - claim_id: rc030
+    text: "모델 출력도 그대로 믿지 않고 코드로 형식과 값을 검증합니다"
+    expected: supported
+    group: pi_output_validation
+    expected_evidence_doc: prompt_injection
+    source: {case_id: pi02_solid, side_id: s1}
+
+  - claim_id: rc031
+    text: "간접 인젝션은 사용자가 악의적일 때만 일어나니까"
+    expected: contradicted
+    group: pi_indirect
+    expected_evidence_doc: prompt_injection
+    source: {case_id: pi02_side_wrong, side_id: s1}
+
+  - claim_id: rc032
+    text: "벡터 검색은 학습에서 드물었던 용어는 놓칠 수 있어서"
+    expected: supported
+    group: es_rare_terms
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: hr01_solid, side_id: s1}
+
+  - claim_id: rc033
+    text: "BM25는 같은 단어가 반복될 때마다 점수가 같은 폭으로 올라갑니다"
+    expected: contradicted
+    group: hr_bm25_saturation
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: hr01_side_wrong, side_id: s1}
+
+  - claim_id: rc034
+    text: "RRF에서 쓰는 상수 k는 가져오는 문서 수와는 다른 값입니다"
+    expected: supported
+    group: hr_rrf_k
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: hr02_solid, side_id: s1}
+
+  - claim_id: rc035
+    text: "RRF 점수가 높게 나온 문서에는 정답이 들어 있다고 보면 됩니다"
+    expected: contradicted
+    group: hr_rrf_score
+    expected_evidence_doc: hybrid_rerank
+    source: {case_id: hr02_side_wrong, side_id: s1}
+
+  - claim_id: rc036
+    text: "모델은 함수 이름과 설명, 인자 스키마를 보고 도구를 고르기 때문에 설명을 명확히 써야 합니다"
+    expected: supported
+    group: tc_tool_desc
+    expected_evidence_doc: tool_calling
+    source: {case_id: tc01_solid, side_id: s1}
+
+  - claim_id: rc037
+    text: "제공자가 주는 검색 같은 내장 도구도 항상 우리 애플리케이션이 실행합니다"
+    expected: contradicted
+    group: tc_builtin
+    expected_evidence_doc: tool_calling
+    source: {case_id: tc01_side_wrong, side_id: s1}
+
+  - claim_id: rc038
+    text: "같은 도구를 여러 번 부르는 것 자체는 다음 페이지를 가져올 때처럼 정상일 수 있어서"
+    expected: supported
+    group: tc_repeat_normal
+    expected_evidence_doc: tool_calling
+    source: {case_id: tc02_solid, side_id: s1}
+
+  - claim_id: rc039
+    text: "ReAct는 도구를 쓰지 않고 추론만 반복하는 방식입니다"
+    expected: contradicted
+    group: tc_react
+    expected_evidence_doc: tool_calling
+    source: {case_id: tc02_side_wrong, side_id: s1}
