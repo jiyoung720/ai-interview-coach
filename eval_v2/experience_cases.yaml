@@ -52,12 +52,12 @@ experience:
     quality: shallow
     answer: "규정 문서에 영어 약어가 섞인 질문이 많았는데, 처음 쓰던 한국어 특화 모델이 그런 질문에 약했습니다. 평가용 50문항에서 1순위 정답이 31개에서 41개로 오른 건, 그 한국어 특화 모델을 다국어 범용 모델로 바꿨을 때였습니다."
     intended:
-      rubric: {decision_basis: observed, alternatives: absent}
+      rubric: {decision_basis: observed, alternatives: observed}
       contradiction: true
       contradiction_quotes:
         - "1순위 정답이 31개에서 41개로 오른 건, 그 한국어 특화 모델을 다국어 범용 모델로 바꿨을 때였습니다"
         - "임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체하고"
-      rationale: "바꾼 이유는 말했지만 비교는 없다. 31→41을 만든 바로 그 교체의 방향이 이력서와 정반대라 직접 모순이다."
+      rationale: "교체 이유와 기존 모델 대비 차이를 설명했다. 다만 31→41을 만든 바로 그 교체의 방향이 이력서와 반대라 직접 모순이다."
 
   # ================================================================ sample_rag / eq2 (outcome)
   - case_id: rag_eq2_vague
@@ -94,7 +94,7 @@ experience:
     answer: "따로 수치를 내지는 않았고, 근거가 흩어지기 쉬운 긴 조항에 대한 질문 10개를 골라 바꾸기 전후 검색 결과를 나란히 놓고 봤습니다. 전에는 조항 앞부분과 단서 조항이 다른 청크로 나와 답에서 단서가 빠졌는데, 바꾼 뒤에는 한 청크에 조항 전체가 들어오는 것을 확인했습니다."
     intended:
       rubric: {outcome: observed}
-      rationale: "숫자는 없지만 무엇을 골라 어떻게 비교했는지 정성적으로 확인했다. 정성적 확인도 observed다."
+      rationale: "정량 성과 지표는 없지만, 질문 10개의 전후 검색 결과를 직접 비교했다. 정성적 확인도 observed다."
 
   # ================================================================ sample_rag / eq3 (specificity, decision_basis)
   - case_id: rag_eq3_vague
@@ -138,10 +138,10 @@ experience:
     sample_id: sample_agent
     question_id: eq1
     quality: shallow
-    answer: "모델이 없는 도구 이름을 부르거나 날짜를 이상한 형식으로 보내면 캘린더 API에서 에러가 나서 에이전트가 멈췄습니다. 특히 일정 등록은 잘못된 날짜로 들어가면 사용자가 모르고 지나갈 수 있어서 실행 전에 막아야 한다고 봤습니다. 그래서 검증하는 단계를 넣었습니다."
+    answer: "잘못된 날짜로 일정이 등록되면 사용자가 모르고 지나갈 수 있어서요. 그래서 실행 전에 막는 쪽을 택했습니다. 구체적으로 어떻게 처리했는지는 잘 기억나지 않습니다."
     intended:
       rubric: {specificity: absent, decision_basis: observed}
-      rationale: "왜 실행 전에 막아야 했는지는 말했지만, 무엇을 어떻게 검증하고 실패하면 어떻게 했는지는 없다."
+      rationale: "실행 전에 막은 이유는 말했지만, 무엇을 어떻게 검증하고 실패하면 어떻게 했는지는 없다."
 
   - case_id: agent_eq1_solid
     sample_id: sample_agent
@@ -316,10 +316,10 @@ experience:
     sample_id: sample_eval
     question_id: eq2
     quality: shallow
-    answer: "여러 채점 결과를 보다가 긴 요약의 점수가 대체로 높다는 걸 느꼈고, 사람이 준 점수보다 높게 나오는 경우도 있어서 길이 편향이라고 판단했습니다."
+    answer: "사람보다 모델이 후하게 준 긴 요약이 몇 건 눈에 띄어서 길이 편향이라고 판단했습니다. 품질이 비슷한 요약끼리 따로 비교해 보지는 못했습니다."
     intended:
       rubric: {specificity: absent}
-      rationale: "사람 점수와 비교했다는 말은 있지만 대상과 방법이 흐릿하고, 품질이 비슷한 요약끼리 비교했는지는 없다. 항목이 하나라 vague와 라벨이 같다."
+      rationale: "눈에 띈 사례만 있고, 품질이 비슷한 요약에서도 길이가 영향을 줬는지 확인한 방법은 없다. 항목이 하나라 vague와 라벨이 같다."
 
   - case_id: eval_eq2_solid
     sample_id: sample_eval
