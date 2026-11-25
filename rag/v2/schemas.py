@@ -123,6 +123,7 @@ class SideClaim(BaseModel):
 class ConceptIntent(BaseModel):
     core: dict[str, CoreStatus]   # claim_id → 의도한 판정
     side: list[SideClaim] = []
+    rationale: str = ""           # 판정 이유 한 줄 (의도 라벨과 함께 블라인드 파일에서 빠진다)
 
 
 class ConceptCase(BaseModel):
@@ -139,6 +140,7 @@ class ExperienceIntent(BaseModel):
     rubric: dict[str, RubricStatus]
     contradiction: bool = False   # 답변 품질과 별개인 플래그 (설계 §5.2)
     contradiction_quotes: tuple[str, str] | None = None   # (답변 인용, 이력서 인용)
+    rationale: str = ""           # 판정 이유 한 줄
 
     @model_validator(mode="after")
     def _quotes_when_contradiction(self):
