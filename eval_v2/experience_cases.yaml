@@ -1,0 +1,359 @@
+# 경험 캘리브레이션 답변 (B4). 설계 §5.2, §6.2, §9.
+# - quality는 답변을 만든 의도(수준), intended.rubric은 채점 라벨이다. 둘을 따로 기록한다.
+# - 라벨은 질문에 고정된 루브릭 항목에만 붙인다 (묻지 않은 항목으로 감점하지 않는다).
+#   항목이 하나인 질문에서는 vague와 shallow의 라벨이 같을 수 있다. 차이는 답의 구체성뿐이다.
+# - contradiction은 답변 품질과 별개다. 답변과 이력서의 두 문장을 인용할 수 있는 직접 모순만 표시한다.
+#   이력서에 없는 내용을 새로 말한 것(숫자, 세부 방법, 팀원 분담)은 모순이 아니다.
+#   모순 인용은 두 진술이 함께 성립할 여지가 없게 범위를 고정한다 ("총 ~개뿐", "바로 그 교체는").
+#   이력서 쪽 인용은 질문의 resume_span 밖이어도 같은 프로젝트 안에 있을 수 있다
+#   (eval_eq1_contradiction). 그래서 판정(B6)에는 resume_span 한 줄이 아니라 그 프로젝트 섹션 전체를 넘긴다.
+# - 정성적 확인만 있는 답(rag_eq2_qualitative), 팀·개인 역할이 섞인 답(agent_eq1_team),
+#   짧지만 항목을 갖춘 답(agent_eq2_brief)을 경계 사례로 넣었다.
+# - 분할은 이력서 단위. 홀드아웃은 이력서 1개라 결과를 그 프로필에서의 회귀 확인으로만 해석한다.
+# - Codex 블라인드 파일(B5)에는 intended와 함께 quality와 case_id도 가리고 중립 ID를 쓴다.
+
+splits:
+  sample_rag: dev
+  sample_agent: dev
+  sample_eval: holdout
+
+experience:
+  # ================================================================ sample_rag / eq1 (decision_basis, alternatives)
+  - case_id: rag_eq1_vague
+    sample_id: sample_rag
+    question_id: eq1
+    quality: vague
+    answer: "팀에서 모델을 바꿔 보자는 얘기가 나와서 한국어 특화 모델로 바꿨습니다. 써 보니 결과가 좋아서 그대로 썼습니다."
+    intended:
+      rubric: {decision_basis: absent, alternatives: absent}
+      rationale: "바꾼 이유가 팀 제안뿐이고 어떤 문제 때문인지 없다. 비교하거나 감수한 점도 없다."
+
+  - case_id: rag_eq1_shallow
+    sample_id: sample_rag
+    question_id: eq1
+    quality: shallow
+    answer: "규정 문서에는 법률 용어나 조항 번호가 들어간 한국어 질문이 많아서, 이런 질문을 더 잘 처리할 필요가 있었습니다. 그래서 한국어 문장을 더 많이 학습한 한국어 특화 모델을 골랐습니다."
+    intended:
+      rubric: {decision_basis: observed, alternatives: absent}
+      rationale: "고른 이유는 말했지만, 기존 모델이나 다른 방법과의 비교, 감수한 점은 없다."
+
+  - case_id: rag_eq1_solid
+    sample_id: sample_rag
+    question_id: eq1
+    quality: solid
+    answer: "규정 문서에는 법률 용어나 조항 번호 같은 한국어 표현이 많은데, 다국어 범용 모델은 이런 질문에서 엉뚱한 조항을 1순위로 가져오는 경우가 많았습니다. 그래서 한국어 특화 모델로 바꿨고, 같은 50문항에서 1순위 정답이 31개에서 41개로 늘었습니다. 다른 방법으로는 모델은 그대로 두고 키워드 검색을 섞는 하이브리드 검색도 생각했는데, 구현할 부분이 늘어나서 먼저 모델만 바꿔 비교했습니다. 감수한 점은 영어 약어가 섞인 질문에는 약해질 수 있다는 것과, 기존 벡터와 섞어 쓸 수 없어서 문서 120개를 전부 다시 임베딩해야 했다는 점입니다."
+    intended:
+      rubric: {decision_basis: observed, alternatives: observed}
+      rationale: "바꾼 이유, 검토한 다른 방법과 고르지 않은 이유, 감수한 점을 모두 말했다."
+
+  - case_id: rag_eq1_contradiction
+    sample_id: sample_rag
+    question_id: eq1
+    quality: shallow
+    answer: "규정 문서에 영어 약어가 섞인 질문이 많았는데, 처음 쓰던 한국어 특화 모델이 그런 질문에 약했습니다. 평가용 50문항에서 1순위 정답이 31개에서 41개로 오른 건, 그 한국어 특화 모델을 다국어 범용 모델로 바꿨을 때였습니다."
+    intended:
+      rubric: {decision_basis: observed, alternatives: absent}
+      contradiction: true
+      contradiction_quotes:
+        - "1순위 정답이 31개에서 41개로 오른 건, 그 한국어 특화 모델을 다국어 범용 모델로 바꿨을 때였습니다"
+        - "임베딩 모델을 다국어 범용 모델에서 한국어 특화 모델로 교체하고"
+      rationale: "바꾼 이유는 말했지만 비교는 없다. 31→41을 만든 바로 그 교체의 방향이 이력서와 정반대라 직접 모순이다."
+
+  # ================================================================ sample_rag / eq2 (outcome)
+  - case_id: rag_eq2_vague
+    sample_id: sample_rag
+    question_id: eq2
+    quality: vague
+    answer: "조항 단위로 나누는 게 규정 문서 구조에 맞는 방식이라 바꿨고, 확실히 더 좋아졌다고 생각합니다."
+    intended:
+      rubric: {outcome: absent}
+      rationale: "좋아졌다는 판단만 있고 어떻게 확인했는지 없다."
+
+  - case_id: rag_eq2_shallow
+    sample_id: sample_rag
+    question_id: eq2
+    quality: shallow
+    answer: "500자로 자르면 한 조항이 두 청크로 갈라지는 경우가 많아서, 조항 번호를 기준으로 나누도록 분할 규칙을 바꿨습니다. 그렇게 하니 근거가 흩어지는 문제가 줄었습니다."
+    intended:
+      rubric: {outcome: absent}
+      rationale: "무엇을 바꿨는지는 구체적이지만, 효과를 어떻게 확인했는지는 말하지 않았다. 항목이 하나라 vague와 라벨이 같다."
+
+  - case_id: rag_eq2_solid
+    sample_id: sample_rag
+    question_id: eq2
+    quality: solid
+    answer: "평가용 50문항을 바꾸기 전과 후에 똑같이 돌려서, 1순위 청크 안에 정답 조항이 잘리지 않고 온전히 들어 있는 문항 수를 비교했습니다. 임베딩 모델 교체와 효과가 섞이지 않도록, 이 비교는 모델을 바꾸기 전에 같은 모델로 했습니다."
+    intended:
+      rubric: {outcome: observed}
+      rationale: "같은 평가셋으로 전후를 비교했고, 무엇을 세었는지와 다른 변경과 섞이지 않게 한 방법까지 말했다."
+
+  - case_id: rag_eq2_qualitative
+    sample_id: sample_rag
+    question_id: eq2
+    quality: solid
+    answer: "따로 수치를 내지는 않았고, 근거가 흩어지기 쉬운 긴 조항에 대한 질문 10개를 골라 바꾸기 전후 검색 결과를 나란히 놓고 봤습니다. 전에는 조항 앞부분과 단서 조항이 다른 청크로 나와 답에서 단서가 빠졌는데, 바꾼 뒤에는 한 청크에 조항 전체가 들어오는 것을 확인했습니다."
+    intended:
+      rubric: {outcome: observed}
+      rationale: "숫자는 없지만 무엇을 골라 어떻게 비교했는지 정성적으로 확인했다. 정성적 확인도 observed다."
+
+  # ================================================================ sample_rag / eq3 (specificity, decision_basis)
+  - case_id: rag_eq3_vague
+    sample_id: sample_rag
+    question_id: eq3
+    quality: vague
+    answer: "기준값은 몇 번 바꿔 보면서 괜찮아 보이는 값으로 정했습니다."
+    intended:
+      rubric: {specificity: absent, decision_basis: absent}
+      rationale: "어떤 데이터로 어떻게 정했는지도, 왜 그 값인지도 없다."
+
+  - case_id: rag_eq3_shallow
+    sample_id: sample_rag
+    question_id: eq3
+    quality: shallow
+    answer: "후보 기준값 0.3, 0.35, 0.4를 정해 두고, 노트에 답이 있는 질문 30개와 노트에 없는 질문 20개를 넣어 각 값에서 보류되는 질문을 확인했습니다. 최종적으로는 0.35로 정했습니다."
+    intended:
+      rubric: {specificity: observed, decision_basis: absent}
+      rationale: "어떤 질문으로 어떤 후보값을 시험했는지는 구체적이지만, 0.35를 고른 이유는 말하지 않았다."
+
+  - case_id: rag_eq3_solid
+    sample_id: sample_rag
+    question_id: eq3
+    quality: solid
+    answer: "노트에 답이 있는 질문 30개와 노트에 없는 질문 20개를 만들어서, 각각 1순위 노트와의 거리를 뽑아 봤습니다. 두 묶음이 겹치는 구간이 있어서 어디에 기준을 두든 틀리는 질문이 생겼는데, 공부할 때는 엉뚱한 노트로 답하는 쪽이 답을 보류하는 쪽보다 더 해롭다고 봤습니다. 그래서 답이 없는 질문은 거의 다 걸러지도록 기준을 답이 있는 질문 쪽으로 붙여 잡았고, 대신 답이 있는 질문 몇 개가 보류되는 것은 감수했습니다."
+    intended:
+      rubric: {specificity: observed, decision_basis: observed}
+      rationale: "어떻게 정했는지와 왜 그 위치에 뒀는지를 모두 말했다. 질문 30개·20개는 이력서에 없는 새 정보지만 모순은 아니다."
+
+  # ================================================================ sample_agent / eq1 (specificity, decision_basis)
+  - case_id: agent_eq1_vague
+    sample_id: sample_agent
+    question_id: eq1
+    quality: vague
+    answer: "잘못된 호출이 와도 에러가 나지 않게 처리했습니다. 에이전트는 안정성이 중요하다고 생각해서요."
+    intended:
+      rubric: {specificity: absent, decision_basis: absent}
+      rationale: "어떻게 처리했는지 없고, 이유도 일반론뿐이다."
+
+  - case_id: agent_eq1_shallow
+    sample_id: sample_agent
+    question_id: eq1
+    quality: shallow
+    answer: "모델이 없는 도구 이름을 부르거나 날짜를 이상한 형식으로 보내면 캘린더 API에서 에러가 나서 에이전트가 멈췄습니다. 특히 일정 등록은 잘못된 날짜로 들어가면 사용자가 모르고 지나갈 수 있어서 실행 전에 막아야 한다고 봤습니다. 그래서 검증하는 단계를 넣었습니다."
+    intended:
+      rubric: {specificity: absent, decision_basis: observed}
+      rationale: "왜 실행 전에 막아야 했는지는 말했지만, 무엇을 어떻게 검증하고 실패하면 어떻게 했는지는 없다."
+
+  - case_id: agent_eq1_solid
+    sample_id: sample_agent
+    question_id: eq1
+    quality: solid
+    answer: "도구를 실행하는 노드 앞에 검증 노드를 두고, 도구 이름이 등록된 목록에 있는지와 인자를 Pydantic 모델로 파싱했을 때 날짜가 정해진 형식으로 통과하는지 확인했습니다. 실패하면 실행하지 않고, 어떤 인자가 왜 틀렸는지를 모델에게 돌려줘 다시 호출하게 했습니다. 두 번 연속 실패하면 사용자에게 날짜를 다시 물었습니다. 실행 후에 에러를 잡는 방식도 있지만, 등록 도구는 잘못된 날짜로 일정이 들어가 버리면 에러 없이 지나가기 때문에 실행 전에 막는 쪽을 택했습니다."
+    intended:
+      rubric: {specificity: observed, decision_basis: observed}
+      rationale: "검증 대상과 방법, 실패 시 처리, 실행 전에 막은 이유를 모두 말했다."
+
+  - case_id: agent_eq1_team
+    sample_id: sample_agent
+    question_id: eq1
+    quality: solid
+    answer: "이 부분은 팀원과 나눠서 했습니다. 저는 LangGraph에서 도구를 실행하기 전에 검증 노드를 거치도록 흐름을 짰고, 날짜 형식을 검사하는 함수는 팀원이 만들었습니다. 검증에 실패하면 오류 내용을 모델에게 돌려줘 다시 호출하게 했습니다. 등록 도구는 잘못된 날짜로 일정이 들어가 버리면 되돌리기 번거로워서, 실행 후가 아니라 실행 전에 막는 쪽을 택했습니다."
+    intended:
+      rubric: {specificity: observed, decision_basis: observed}
+      rationale: "본인 몫과 팀원 몫이 갈리지만 방법과 이유는 드러난다. 일부를 팀원이 했다는 것은 이력서와 직접 모순되지 않는다."
+
+  # ================================================================ sample_agent / eq2 (alternatives)
+  - case_id: agent_eq2_vague
+    sample_id: sample_agent
+    question_id: eq2
+    quality: vague
+    answer: "삭제는 위험하니까 확인을 받게 했습니다. 그래야 사용자도 안심하고 쓸 수 있습니다."
+    intended:
+      rubric: {alternatives: absent}
+      rationale: "다른 방식과의 비교도, 감수한 점도 없다."
+
+  - case_id: agent_eq2_shallow
+    sample_id: sample_agent
+    question_id: eq2
+    quality: shallow
+    answer: "삭제 요청이 오면 어떤 일정을 지울지 보여 주고, 사용자가 '네'라고 답한 뒤에만 삭제 도구를 실행했습니다. 모델이 이름이 비슷한 다른 일정을 고르는 경우가 있어서 넣었습니다."
+    intended:
+      rubric: {alternatives: absent}
+      rationale: "어떻게 확인받았는지와 이유는 구체적이지만, 묻는 항목인 다른 방식과의 비교나 감수한 점은 없다."
+
+  - case_id: agent_eq2_solid
+    sample_id: sample_agent
+    question_id: eq2
+    quality: solid
+    answer: "다른 방법으로는 일정을 바로 지우지 않고 숨겨 뒀다가 일정 기간이 지나면 지우는 방식을 생각했는데, 쓰던 캘린더 API에 그런 기능이 없어서 직접 만들어야 했습니다. 확인을 받는 방식은 구현이 간단한 대신 사용자가 한 번 더 답해야 해서, '내일 회의 다 지워 줘' 같은 요청은 대화가 길어지는 것을 감수했습니다."
+    intended:
+      rubric: {alternatives: observed}
+      rationale: "검토한 다른 방식과 고르지 않은 이유, 선택으로 감수한 점을 말했다."
+
+  - case_id: agent_eq2_brief
+    sample_id: sample_agent
+    question_id: eq2
+    quality: solid
+    answer: "삭제를 취소할 수 있게 만드는 방법도 있었지만 구현이 커서 확인 방식을 택했고, 대신 사용자가 한 번 더 답해야 하는 번거로움은 감수했습니다."
+    intended:
+      rubric: {alternatives: observed}
+      rationale: "짧지만 다른 방법, 고르지 않은 이유, 감수한 점이 다 들어 있다."
+
+  - case_id: agent_eq2_contradiction
+    sample_id: sample_agent
+    question_id: eq2
+    quality: solid
+    answer: "확인은 여러 일정을 한꺼번에 지우는 요청에만 받고, 일정 하나를 지우는 요청은 확인 없이 바로 실행했습니다. 모든 삭제에 확인을 받으면 대화가 길어지는 것을 감수해야 해서 그렇게 나눴습니다. 실행 취소 기능도 생각했지만 캘린더 API에 그런 기능이 없어서 뺐습니다."
+    intended:
+      rubric: {alternatives: observed}
+      contradiction: true
+      contradiction_quotes:
+        - "일정 하나를 지우는 요청은 확인 없이 바로 실행했습니다"
+        - "사용자 일정에 영향을 주는 삭제 요청은 사용자 확인을 받은 뒤에만 실행하도록 했다"
+      rationale: "대안과 감수한 점은 갖췄지만, 확인 없이 삭제했다는 말이 이력서와 직접 모순된다. 품질과 모순은 별개다."
+
+  # ================================================================ sample_agent / eq3 (outcome)
+  - case_id: agent_eq3_vague
+    sample_id: sample_agent
+    question_id: eq3
+    quality: vague
+    answer: "본문을 분리하고 나서는 인젝션 문제가 해결됐습니다."
+    intended:
+      rubric: {outcome: absent}
+      rationale: "해결됐다는 결론만 있고 어떻게 확인했는지 없다."
+
+  - case_id: agent_eq3_shallow
+    sample_id: sample_agent
+    question_id: eq3
+    quality: shallow
+    answer: "이메일 본문을 구분된 블록에 넣고, 시스템 프롬프트에 블록 안의 지시는 따르지 말라고 적었습니다. 출력도 코드로 형식을 검사하게 바꿔서 대응이 됐다고 봅니다."
+    intended:
+      rubric: {outcome: absent}
+      rationale: "무엇을 바꿨는지는 말했지만 효과를 확인한 방법은 없다. 항목이 하나라 vague와 라벨이 같다."
+
+  - case_id: agent_eq3_solid
+    sample_id: sample_agent
+    question_id: eq3
+    quality: solid
+    answer: "같은 공격 문장을 넣은 테스트 이메일 20개를 만들어 바꾸기 전과 후에 똑같이 돌렸습니다. 요약에 공격 문장이 시킨 내용이 들어갔는지, 할 일 목록에 공격 문장이 시킨 항목이 추가됐는지를 하나씩 봤고, 바꾼 뒤에는 20개 모두에서 지시를 따르지 않았습니다. 다만 같은 공격 문장만 썼기 때문에 다른 표현의 공격까지 막는다고는 말할 수 없습니다."
+    intended:
+      rubric: {outcome: observed}
+      rationale: "어떤 데이터로 무엇을 보고 확인했는지와 확인의 한계까지 말했다."
+
+  - case_id: agent_eq3_contradiction
+    sample_id: sample_agent
+    question_id: eq3
+    quality: solid
+    answer: "대응 효과를 확인하는 데 쓴 테스트 이메일은 모두 5개뿐이었습니다. 그 5개로 바꾸기 전과 후를 비교해, 요약이나 할 일 목록에 공격 문장이 시킨 내용이 들어갔는지 봤고, 바꾼 뒤에는 따르지 않았습니다."
+    intended:
+      rubric: {outcome: observed}
+      contradiction: true
+      contradiction_quotes:
+        - "대응 효과를 확인하는 데 쓴 테스트 이메일은 모두 5개뿐이었습니다"
+        - "같은 공격 문장을 넣은 테스트 이메일 20개로"
+      rationale: "확인 방법은 말했지만, 테스트 이메일 수가 이력서(20개)와 직접 모순된다."
+
+  - case_id: agent_eq3_wrong_measure
+    sample_id: sample_agent
+    question_id: eq3
+    quality: shallow
+    answer: "structured output으로 형식을 고정하고 나서 테스트 이메일 50개에서 응답이 모두 파싱에 성공했습니다. 그래서 인젝션 대응도 효과가 있었다고 봤습니다."
+    intended:
+      rubric: {outcome: absent}
+      rationale: "확인한 것은 출력 형식(파싱 성공)이지 공격 지시를 따르지 않았는지가 아니라서, 묻는 효과를 확인한 방법이 아니다. 50개 파싱 성공은 이력서와 맞아서 모순은 아니다."
+
+  # ================================================================ sample_eval / eq1 (decision_basis, outcome)
+  - case_id: eval_eq1_vague
+    sample_id: sample_eval
+    question_id: eq1
+    quality: vague
+    answer: "채점 기준을 조금 손봤고, 그 뒤로 결과가 좋아졌습니다."
+    intended:
+      rubric: {decision_basis: absent, outcome: absent}
+      rationale: "무엇을 왜 바꿨는지도, 어떻게 확인했는지도 없다."
+
+  - case_id: eval_eq1_shallow
+    sample_id: sample_eval
+    question_id: eq1
+    quality: shallow
+    answer: "긴 요약이 내용과 상관없이 높은 점수를 받으면, 요약 기능을 고칠 때 짧고 정확한 요약을 오히려 나쁘게 평가하게 됩니다. 그래서 채점 기준에 길이 때문에 점수를 올리지 말라는 항목을 넣었습니다."
+    intended:
+      rubric: {decision_basis: observed, outcome: absent}
+      rationale: "무엇을 왜 바꿨는지는 말했지만, 바꾼 뒤 어떻게 확인했는지는 없다."
+
+  - case_id: eval_eq1_solid
+    sample_id: sample_eval
+    question_id: eq1
+    quality: solid
+    answer: "긴 요약이 내용과 상관없이 높은 점수를 받으면, 요약 기능을 고칠 때 짧고 정확한 요약을 오히려 나쁘게 평가하게 됩니다. 그래서 채점 기준에 길이 때문에 점수를 올리지 말라는 항목을 넣었습니다. 기준을 넣은 뒤에는 상담원 3명이 채점한 같은 100건에 다시 돌려 변경 전후의 판정 일치율을 비교했고, 사람은 낮게 줬는데 모델이 높게 줬던 긴 요약들이 줄었는지도 따로 봤습니다."
+    intended:
+      rubric: {decision_basis: observed, outcome: observed}
+      rationale: "바꾼 이유와, 같은 데이터로 전후를 비교한 확인 방법을 모두 말했다."
+
+  - case_id: eval_eq1_contradiction
+    sample_id: sample_eval
+    question_id: eq1
+    quality: solid
+    answer: "긴 요약이 높은 점수를 받으면 짧고 정확한 요약을 나쁘게 평가하게 되니까, 채점 기준에 길이로 점수를 올리지 말라는 항목을 넣었습니다. 기존 100건은 다시 쓰지 않았고, 변경 후에는 새로 뽑은 상담 200건으로만 사람 채점과 비교해 일치율을 확인했습니다."
+    intended:
+      rubric: {decision_basis: observed, outcome: observed}
+      contradiction: true
+      contradiction_quotes:
+        - "기존 100건은 다시 쓰지 않았고, 변경 후에는 새로 뽑은 상담 200건으로만 사람 채점과 비교해"
+        - "기준을 추가한 뒤 같은 100건으로 다시 비교해"
+      rationale: "이유와 확인 방법은 갖췄지만, 다시 비교한 데이터가 이력서(같은 100건)와 직접 모순된다."
+
+  # ================================================================ sample_eval / eq2 (specificity)
+  - case_id: eval_eq2_vague
+    sample_id: sample_eval
+    question_id: eq2
+    quality: vague
+    answer: "채점 결과를 보다 보니 긴 요약이 점수가 높은 것 같았습니다."
+    intended:
+      rubric: {specificity: absent}
+      rationale: "무엇을 어떻게 봤는지 없이 느낌만 말했다."
+
+  - case_id: eval_eq2_shallow
+    sample_id: sample_eval
+    question_id: eq2
+    quality: shallow
+    answer: "여러 채점 결과를 보다가 긴 요약의 점수가 대체로 높다는 걸 느꼈고, 사람이 준 점수보다 높게 나오는 경우도 있어서 길이 편향이라고 판단했습니다."
+    intended:
+      rubric: {specificity: absent}
+      rationale: "사람 점수와 비교했다는 말은 있지만 대상과 방법이 흐릿하고, 품질이 비슷한 요약끼리 비교했는지는 없다. 항목이 하나라 vague와 라벨이 같다."
+
+  - case_id: eval_eq2_solid
+    sample_id: sample_eval
+    question_id: eq2
+    quality: solid
+    answer: "사람 채점 100건에서 사람이 같은 점수를 준 요약끼리 묶고, 그 안에서 요약 길이와 모델 점수를 비교했습니다. 사람 기준으로 품질이 같은 묶음에서도 긴 요약일수록 모델 점수가 높았습니다. 몇 건은 같은 요약에 내용 없는 문장을 덧붙인 버전을 만들어 다시 채점시켰는데, 내용이 같아도 긴 쪽이 점수를 더 받았습니다."
+    intended:
+      rubric: {specificity: observed}
+      rationale: "어떤 데이터를 어떻게 묶어 비교했는지, 품질을 맞춘 방법까지 구체적으로 말했다."
+
+  # ================================================================ sample_eval / eq3 (alternatives)
+  - case_id: eval_eq3_vague
+    sample_id: sample_eval
+    question_id: eq3
+    quality: vague
+    answer: "캐시를 붙이니까 호출 수가 줄어서 좋았습니다."
+    intended:
+      rubric: {alternatives: absent}
+      rationale: "다른 방법도, 감수한 점도 없다."
+
+  - case_id: eval_eq3_shallow
+    sample_id: sample_eval
+    question_id: eq3
+    quality: shallow
+    answer: "같은 질문이 들어오면 질문 문자열을 키로 저장해 둔 답을 바로 돌려주게 했습니다. FAQ 봇이라 같은 질문이 많아서 효과가 컸습니다."
+    intended:
+      rubric: {alternatives: absent}
+      rationale: "어떻게 만들었는지는 구체적이지만, 묻는 항목인 다른 방법이나 감수한 점은 없다."
+
+  - case_id: eval_eq3_solid
+    sample_id: sample_eval
+    question_id: eq3
+    quality: solid
+    answer: "다른 방법으로는 더 싼 모델로 바꾸는 것도 생각했는데, 답 품질이 떨어질 수 있어서 같은 질문을 다시 부르지 않는 캐시를 먼저 택했습니다. 감수한 점은 FAQ 답이 바뀌어도 캐시된 옛 답이 나갈 수 있다는 것이라 캐시에 하루 유효 기간을 뒀습니다. 또 질문 문자열이 정확히 같을 때만 캐시가 맞아서, 표현이 조금 다른 같은 질문은 그대로 호출됩니다."
+    intended:
+      rubric: {alternatives: observed}
+      rationale: "검토한 다른 방법과 고르지 않은 이유, 감수한 점 두 가지를 말했다."
