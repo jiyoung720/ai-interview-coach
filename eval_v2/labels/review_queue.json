@@ -1,0 +1,304 @@
+{
+ "run_id": "aa67db06ec14",
+ "seed": 20261126,
+ "counts": {
+  "units": 403,
+  "agree": 400,
+  "disagree": 3
+ },
+ "disagreements": [
+  {
+   "unit": "rag02_misconception#core.c1",
+   "intended": "missing",
+   "codex": "met",
+   "reason": "different"
+  },
+  {
+   "unit": "tc01_misconception#core.c1",
+   "intended": "missing",
+   "codex": "wrong",
+   "reason": "different"
+  },
+  {
+   "unit": "eval_eq2_shallow#rubric.specificity",
+   "intended": "absent",
+   "codex": "observed",
+   "reason": "different"
+  }
+ ],
+ "samples": [
+  {
+   "unit": "agent_eq1_team#rubric.specificity",
+   "label": "observed"
+  },
+  {
+   "unit": "agent_eq2_brief#contradiction",
+   "label": "false"
+  },
+  {
+   "unit": "agent_eq3_solid#rubric.outcome",
+   "label": "observed"
+  },
+  {
+   "unit": "ch01_solid#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "ch01_solid#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "ch02_partial#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "ch02_solid#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "ch02_solid#side.s1",
+   "label": "unverified"
+  },
+  {
+   "unit": "es01_len_long#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "es01_len_short#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "es02_missing#core.c1",
+   "label": "missing"
+  },
+  {
+   "unit": "es03_partial#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "es03_solid#side.s1",
+   "label": "supported"
+  },
+  {
+   "unit": "eval_eq3_solid#contradiction",
+   "label": "false"
+  },
+  {
+   "unit": "eval_eq3_vague#contradiction",
+   "label": "false"
+  },
+  {
+   "unit": "hr01_misconception#core.c2",
+   "label": "wrong"
+  },
+  {
+   "unit": "hr02_brief#core.c3",
+   "label": "met"
+  },
+  {
+   "unit": "hr02_partial#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "hr02_solid#core.c3",
+   "label": "met"
+  },
+  {
+   "unit": "lj01_brief#core.c3",
+   "label": "met"
+  },
+  {
+   "unit": "lj01_misconception#core.c1",
+   "label": "wrong"
+  },
+  {
+   "unit": "lj01_missing#core.c2",
+   "label": "missing"
+  },
+  {
+   "unit": "lj01_side_wrong#side.s1",
+   "label": "contradicted"
+  },
+  {
+   "unit": "lj02_brief#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "lj02_misconception#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "lj02_side_wrong#side.s1",
+   "label": "contradicted"
+  },
+  {
+   "unit": "lj02_solid#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "pi01_injection#core.c2",
+   "label": "missing"
+  },
+  {
+   "unit": "pi01_solid#side.s1",
+   "label": "supported"
+  },
+  {
+   "unit": "pi02_misconception#core.c1",
+   "label": "wrong"
+  },
+  {
+   "unit": "pi02_solid#side.s1",
+   "label": "supported"
+  },
+  {
+   "unit": "rag01_missing#core.c2",
+   "label": "missing"
+  },
+  {
+   "unit": "rag01_side_wrong#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "rag01_side_wrong#core.c3",
+   "label": "met"
+  },
+  {
+   "unit": "rag01_side_wrong#side.s1",
+   "label": "contradicted"
+  },
+  {
+   "unit": "rag02_side_wrong#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "rag02_side_wrong#core.c3",
+   "label": "met"
+  },
+  {
+   "unit": "rag02_side_wrong#side.s1",
+   "label": "contradicted"
+  },
+  {
+   "unit": "rag02_solid#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "rag03_brief#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "rag03_misconception#core.c2",
+   "label": "wrong"
+  },
+  {
+   "unit": "rag03_side_wrong#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "rag03_side_wrong#side.s1",
+   "label": "contradicted"
+  },
+  {
+   "unit": "rag_eq1_contradiction#contradiction",
+   "label": "true"
+  },
+  {
+   "unit": "rag_eq1_shallow#rubric.alternatives",
+   "label": "absent"
+  },
+  {
+   "unit": "rag_eq1_shallow#rubric.decision_basis",
+   "label": "observed"
+  },
+  {
+   "unit": "rag_eq1_solid#rubric.alternatives",
+   "label": "observed"
+  },
+  {
+   "unit": "rag_eq1_vague#contradiction",
+   "label": "false"
+  },
+  {
+   "unit": "rag_eq1_vague#rubric.alternatives",
+   "label": "absent"
+  },
+  {
+   "unit": "rag_eq2_qualitative#rubric.outcome",
+   "label": "observed"
+  },
+  {
+   "unit": "rag_eq3_solid#rubric.decision_basis",
+   "label": "observed"
+  },
+  {
+   "unit": "so01_brief#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "so01_side_wrong#core.c2",
+   "label": "met"
+  },
+  {
+   "unit": "so02_misconception#core.c1",
+   "label": "wrong"
+  },
+  {
+   "unit": "so02_misconception#core.c2",
+   "label": "wrong"
+  },
+  {
+   "unit": "so02_missing#core.c2",
+   "label": "missing"
+  },
+  {
+   "unit": "so02_solid#side.s1",
+   "label": "supported"
+  },
+  {
+   "unit": "tc01_brief#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "tc01_side_wrong#core.c1",
+   "label": "met"
+  },
+  {
+   "unit": "tc02_solid#side.s1",
+   "label": "supported"
+  }
+ ],
+ "relabel": [
+  "agent_eq2_solid",
+  "agent_eq2_vague",
+  "agent_eq3_contradiction",
+  "agent_eq3_shallow",
+  "agent_eq3_wrong_measure",
+  "ch02_missing",
+  "ch03_side_wrong",
+  "es01_partial",
+  "es01_side_wrong",
+  "es02_misconception",
+  "es02_missing",
+  "eval_eq1_contradiction",
+  "eval_eq3_solid",
+  "hr01_side_wrong",
+  "hr02_brief",
+  "hr02_missing",
+  "hr02_side_wrong",
+  "lj01_missing",
+  "rag01_brief",
+  "rag03_brief",
+  "rag03_side_wrong",
+  "rag_eq1_shallow",
+  "rag_eq2_shallow",
+  "rag_eq2_solid",
+  "rag_eq3_solid",
+  "rag_eq3_vague",
+  "so02_misconception",
+  "so02_partial",
+  "so02_solid",
+  "tc01_partial",
+  "tc02_missing"
+ ]
+}
