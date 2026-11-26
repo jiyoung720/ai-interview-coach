@@ -128,6 +128,11 @@ def _register_v1(app: FastAPI) -> None:
     app.include_router(interviews_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    # M1 B5 라벨링 화면. 레포의 eval_v2/labels에 판정을 저장하므로 제작자 노트북에서만 연다.
+    from api.labeling import create_labeling_router
+
+    app.include_router(create_labeling_router(Path(__file__).resolve().parent.parent))
+
     @app.get("/")
     def index():
         return FileResponse(STATIC_DIR / "index.html")

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캘리브레이션 라벨링</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --line:#e7e5e4; --card:#fff; --accent:#2563eb; --mark:#fef08a; --ok:#16a34a; --warn:#b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --line:#44403c; --card:#292524; --accent:#60a5fa; --mark:#854d0e; --ok:#4ade80; --warn:#fbbf24; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 system-ui, sans-serif; }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; z-index:1; }
+  header button { border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:6px; padding:6px 10px; cursor:pointer; }
+  header button.on { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  header button:disabled { opacity:.45; cursor:default; }
+  main { max-width:880px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:12px; }
+  .label { font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .target { border-left:4px solid var(--accent); padding-left:12px; }
+  mark { background:var(--mark); color:inherit; }
+  .opts { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .opts button, .primary { border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:8px 12px; cursor:pointer; }
+  .opts button.cand { border-color:var(--accent); border-width:2px; }
+  .opts button.chosen { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .primary { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .nav { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .nav button { padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  .muted { color:var(--muted); font-size:13px; }
+  .done { color:var(--ok); }
+  .warn { color:var(--warn); }
+  pre { white-space:pre-wrap; font:inherit; margin:0; }
+  textarea, input[type=text] { width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px; font:inherit; }
+  textarea { min-height:48px; }
+  select { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px; }
+  ul { margin:4px 0; padding-left:20px; }
+</style>
+</head>
+<body>
+<header id="tabs"></header>
+<main id="main"><p class="muted">불러오는 중…</p></main>
+
+<script>
+const TABS = [
+  ["actions", "① 다음 행동"],
+  ["disagreement", "② 불일치 판정"],
+  ["sample", "② 일치 표본 검수"],
+  ["relabel", "③ 재라벨링"],
+];
+const LABEL_KO = {
+  met:"충족", missing:"없음", wrong:"틀림", insufficient_evidence:"판정 불가 (KB로 확인 못 함)",
+  supported:"KB가 뒷받침", contradicted:"KB와 충돌", unverified:"KB 근거 없음",
+  observed:"관찰됨", absent:"없음", not_applicable:"해당 없음",
+  "true":"모순 있음", "false":"모순 없음",
+};
+const REASON_KO = {
+  different:"두 판정이 다름", missing:"한쪽 판정이 누락됨 (후보가 하나뿐)",
+  invalid_value:"한쪽이 허용되지 않은 값을 냄 (후보가 하나뿐)", quotes_invalid:"한쪽의 모순 인용이 원문과 맞지 않음",
+};
+let tab = null, items = [], idx = 0, st = null, kb = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const markQuote = (text, quote) => {
+  const t = esc(text);
+  return quote ? t.split(esc(quote)).join(`<mark>${esc(quote)}</mark>`) : t;
+};
+const isJudge = () => tab === "disagreement" || tab === "sample";
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+}
+const post = (path, data) => api(path, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(data) });
+
+async function loadState() {
+  st = await api("/labeling/api/state");
+  const counts = { actions: st.actions, disagreement: st.disagreement, sample: st.sample, relabel: st.relabel };
+  const enabled = { actions: !st.locked, disagreement: st.locked, sample: st.locked, relabel: st.locked };
+  document.getElementById("tabs").innerHTML = TABS.map(([k, name]) =>
+    `<button class="${k === tab ? "on" : ""}" ${enabled[k] ? "" : "disabled"} onclick="openTab('${k}')">${name} ${counts[k].done}/${counts[k].total}</button>`
+  ).join("") + `<span class="muted">숫자키로 선택, ←/→로 이동</span>`;
+}
+
+async function fetchItems(k) {
+  if (k === "actions") return api("/labeling/api/actions");
+  if (k === "relabel") return api("/labeling/api/relabel");
+  return api(`/labeling/api/judge?queue=${k}`);
+}
+
+async function openTab(k) {
+  tab = k; idx = 0;
+  try {
+    items = await fetchItems(k);
+    const firstOpen = items.findIndex(x => !x.decided);
+    idx = firstOpen < 0 ? 0 : firstOpen;
+    await loadState();
+    render();
+  } catch (e) {
+    await loadState().catch(() => {});
+    document.getElementById("main").innerHTML = `<div class="card">${esc(e.message)}</div>`;
+  }
+}
+
+function itemView(it, target) {
+  const i = it.item;
+  const sideQuote = target && target.startsWith("side.") && i.side_claims.length ? i.side_claims[0].quote : null;
+  let html = `<div class="card"><div class="label">${esc(i.id)} · ${i.type === "concept" ? "개념" : "경험"} 질문</div><pre>${esc(i.question)}</pre></div>`;
+  if (i.type === "experience") {
+    html += `<div class="card"><div class="label">이력서 (이 프로젝트 섹션)</div><pre>${esc(i.resume_section)}</pre></div>`;
+  }
+  html += `<div class="card"><div class="label">답변</div><pre>${markQuote(i.answer, sideQuote)}</pre></div>`;
+
+  if (!target) {   // 다음 행동·재라벨링: 판정 라벨 없이 채점 기준만
+    if (i.type === "concept") {
+      html += `<div class="card"><div class="label">핵심 주장</div><ul>${i.key_claims.map(c => `<li>${esc(c.claim_id)}: ${esc(c.text)}</li>`).join("")}</ul></div>`;
+    } else {
+      html += `<div class="card"><div class="label">이 질문이 보는 루브릭 항목</div><ul>${i.rubric_items.map(r => `<li>${esc(r.name)}: ${esc(r.observed_when)}</li>`).join("")}</ul></div>`;
+    }
+    return html;
+  }
+
+  let t = "";
+  if (target.startsWith("core.")) {
+    const c = i.key_claims.find(c => "core." + c.claim_id === target);
+    t = `<div class="label">핵심 주장 ${esc(c.claim_id)}</div><b>${esc(c.text)}</b>`
+      + (c.also_accept.length ? `<div class="label" style="margin-top:8px">함께 인정</div><ul>${c.also_accept.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : "")
+      + `<div class="label" style="margin-top:8px">KB 근거 (${esc(c.evidence_doc)})</div><div>${esc(c.evidence)}</div>`
+      + `<div class="muted" style="margin-top:6px">판정 불가: 구체적으로 말했지만 그 세부 내용을 KB로 확인할 수 없을 때. 아무것도 말하지 않았으면 '없음'.</div>`;
+  } else if (target.startsWith("side.")) {
+    t = `<div class="label">질문 밖 주장 (답변에 표시)</div><b>${esc(sideQuote)}</b>
+      <div class="muted" style="margin-top:6px">KB 본문으로 판정합니다. 문서:
+        <select onchange="showKb(this.value)"><option value="">선택</option>${Object.keys(kb || {}).map(d => `<option>${d}</option>`).join("")}</select></div>
+      <div id="kb" style="margin-top:8px"></div>`;
+  } else if (target.startsWith("rubric.")) {
+    const r = i.rubric_items.find(r => "rubric." + r.id === target);
+    t = `<div class="label">루브릭 항목</div><b>${esc(r.name)}</b><div>관찰됨의 기준: ${esc(r.observed_when)}</div>
+      <div class="muted" style="margin-top:6px">단순히 언급하지 않았으면 '없음'. '해당 없음'은 그 항목을 적용할 대상 자체가 없을 때만.</div>`;
+  } else {
+    const q = (it.decided && it.decided.quotes) || ["", ""];
+    t = `<div class="label">모순</div><div>답변과 이력서 문장이 <b>함께 성립할 수 없을 때만</b> 모순입니다. 이력서에 없는 내용을 새로 말한 것은 모순이 아닙니다.</div>
+      <div class="label" style="margin-top:8px">모순 있음을 고를 때: 답변 문장 (원문 그대로)</div><input type="text" id="q0" value="${esc(q[0])}">
+      <div class="label" style="margin-top:6px">이력서 문장 (원문 그대로)</div><input type="text" id="q1" value="${esc(q[1])}">`;
+  }
+  return html + `<div class="card target">${t}</div>`;
+}
+
+function render() {
+  const main = document.getElementById("main");
+  if (!items.length) {
+    main.innerHTML = `<div class="card">${tab === "relabel" ? "지금 열린 재라벨링 항목이 없습니다. 답변마다 첫 라벨 1주 뒤에 열립니다." : "항목이 없습니다."}</div>`;
+    return;
+  }
+  const it = items[idx];
+  const judge = isJudge();
+  const decided = judge ? (it.decided && it.decided.label) : it.decided;
+  let opts, hint;
+  if (judge) {
+    const cands = it.candidates || [];
+    opts = it.options.map((o, n) =>
+      `<button class="${cands.includes(o) ? "cand" : ""} ${decided === o ? "chosen" : ""}" onclick="choose('${o}')">${n + 1}. ${LABEL_KO[o] || o}</button>`).join("");
+    if (!it.decided) {
+      hint = "먼저 직접 판정해 주세요. 고른 뒤에 다른 판정 후보를 보여 드립니다.";
+    } else if (tab === "disagreement") {
+      hint = `굵은 테두리가 서로 다른 판정 후보입니다 (출처는 숨김). 사유: ${REASON_KO[it.reason] || it.reason}. `
+        + `처음 고른 값: ${LABEL_KO[it.decided.first_label] || it.decided.first_label}. 다시 고르면 확정값만 바뀝니다.`;
+    } else {
+      const agreed = cands[0];
+      hint = (agreed === decided ? `<span class="done">두 판정과 같습니다.</span> ` : `<span class="warn">두 판정은 '${LABEL_KO[agreed] || agreed}'였습니다.</span> `)
+        + "맞으면 그대로 두고, 틀리면 고쳐 주세요.";
+    }
+  } else {
+    opts = Object.entries(st.action_labels).map(([k, name], n) =>
+      `<button class="${decided === k ? "chosen" : ""}" onclick="choose('${k}')">${n + 1}. ${esc(name)}</button>`).join("");
+    hint = tab === "relabel" ? "1주 전에 고른 행동은 보여 주지 않습니다. 처음 보는 것처럼 골라 주세요."
+      : "면접관·코치라면 이 답변 다음에 무엇을 하겠습니까? 채점 결과는 보여 주지 않습니다.";
+  }
+  const allDone = tab === "actions" && st.actions.done === st.actions.total;
+  main.innerHTML = `
+    <div class="nav card">
+      <button onclick="move(-1)">← 이전</button>
+      <span>${idx + 1} / ${items.length} ${decided ? '<span class="done">✓ 저장됨</span>' : ""}</span>
+      <button onclick="move(1)">다음 →</button>
+    </div>
+    ${tab === "actions" ? `<div class="card muted">모든 답변에 다음 행동을 붙인 뒤 잠가야 판정 검수가 열립니다. 잠근 뒤에는 고칠 수 없습니다.
+      ${allDone ? `<div style="margin-top:8px"><button class="primary" onclick="lockActions()">다음 행동 잠그고 판정 검수 시작</button></div>` : ""}</div>` : ""}
+    ${itemView(it, judge ? it.target : null)}
+    <div class="card"><div class="muted">${hint}</div><div class="opts">${opts}</div>
+      ${judge ? `<div class="label" style="margin-top:10px">메모 (선택)</div><textarea id="note">${esc(it.decided ? it.decided.note : "")}</textarea>` : ""}
+    </div>`;
+}
+
+async function showKb(doc) {
+  document.getElementById("kb").innerHTML = doc ? `<pre class="muted">${esc(kb[doc])}</pre>` : "";
+}
+
+async function choose(value) {
+  const it = items[idx];
+  try {
+    if (isJudge()) {
+      const note = (document.getElementById("note") || {}).value || "";
+      const q0 = document.getElementById("q0"), q1 = document.getElementById("q1");
+      const quotes = it.target === "contradiction" && value === "true" ? [q0.value, q1.value] : null;
+      const first = !it.decided;
+      await post("/labeling/api/judge", { key: it.key, label: value, note, quotes });
+      items = await fetchItems(tab);   // 저장 후 후보를 받아 온다
+      await loadState();
+      if (!first && idx < items.length - 1) idx++;   // 처음 고르면 그 자리에서 후보를 보여 준다
+    } else {
+      await post(tab === "relabel" ? "/labeling/api/relabel" : "/labeling/api/actions", { id: it.id, action: value });
+      it.decided = value;
+      await loadState();
+      if (idx < items.length - 1) idx++;
+    }
+    render();
+  } catch (e) { alert(e.message); }
+}
+
+async function lockActions() {
+  if (!confirm("다음 행동 라벨을 잠급니다. 잠근 뒤에는 고칠 수 없습니다.")) return;
+  try { await post("/labeling/api/actions/lock", {}); await openTab("disagreement"); }
+  catch (e) { alert(e.message); }
+}
+
+function move(d) { idx = Math.max(0, Math.min(items.length - 1, idx + d)); render(); }
+
+document.addEventListener("keydown", e => {
+  if (["TEXTAREA", "SELECT", "INPUT"].includes(e.target.tagName)) return;
+  if (e.key === "ArrowLeft") move(-1);
+  if (e.key === "ArrowRight") move(1);
+  const n = parseInt(e.key, 10);
+  if (n >= 1 && items.length) {
+    const list = isJudge() ? items[idx].options : Object.keys(st.action_labels);
+    if (list[n - 1]) choose(list[n - 1]);
+  }
+});
+
+(async () => {
+  kb = await api("/labeling/api/kb").catch(() => ({}));
+  try { await loadState(); } catch (e) {
+    document.getElementById("main").innerHTML = `<div class="card">${esc(e.message)}</div>`; return;
+  }
+  openTab(st.locked ? "disagreement" : "actions");
+})();
+</script>
+</body>
+</html>

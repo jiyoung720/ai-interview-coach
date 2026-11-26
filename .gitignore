@@ -11,3 +11,7 @@ data/uploads/
 
 # 앱 DB (세션·예산). 실행 중에 생기는 데이터라 커밋하지 않는다
 data/app.db*
+
+# 라벨링 (M1 B5): Codex 꾸러미는 다시 만들 수 있고, 레포 밖으로 복사해서 쓴다
+eval_v2/labels/codex_bundle/
+eval_v2/labels/*.tmp
