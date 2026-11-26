@@ -35,6 +35,11 @@
   textarea { min-height:48px; }
   select { background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:4px; }
   ul { margin:4px 0; padding-left:20px; }
+  details.guide { margin-top:12px; }
+  details.guide summary { cursor:pointer; color:var(--accent); font-size:13px; }
+  details.guide dl { margin:8px 0 0; font-size:14px; }
+  details.guide dt { font-weight:600; margin-top:8px; }
+  details.guide dd { margin:2px 0 0 0; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -65,6 +70,25 @@ const markQuote = (text, quote) => {
   const t = esc(text);
   return quote ? t.split(esc(quote)).join(`<mark>${esc(quote)}</mark>`) : t;
 };
+// 다음 행동 정의. 답변 유형→행동 대응(규칙)은 일부러 적지 않는다. 행동의 뜻만 설명한다 (설계 §6.4 2-1).
+const ACTION_GUIDE = `<details class="guide" open><summary>행동 기준 보기/접기</summary>
+  <div class="muted" style="margin-top:6px">기준은 하나입니다. "내가 면접관·코치라면 이 답변 다음에 실제로 무엇을 하겠나?"
+    답변 유형을 먼저 정하고 행동을 맞추지 말고, 떠오르는 다음 행동을 고르세요.</div>
+  <dl>
+    <dt>1. 개념 설명 후 넘어가기</dt>
+    <dd>더 물어봐도 얻을 게 없을 만큼 모르거나 크게 어긋나 있다. 설명해 주고 다음 질문으로 간다.</dd>
+    <dt>2. 이 주장·항목 확인 (꼬리질문)</dt>
+    <dd>방금 답변 <b>안의</b> 한 주장이나 항목을 다시 짚는다. 틀린 듯하거나, 빠졌거나, 흐릿한 부분을 확인하려고 묻는다.
+      예) "인덱스를 만들면 쓰기도 빨라져요" → "INSERT할 때는 무슨 일이 생기죠?" / "성능을 개선했어요" → "얼마나, 어떻게 측정했어요?"</dd>
+    <dt>3. 심화</dt>
+    <dd>이 질문은 충분히 됐다고 보고 답변 <b>너머의</b> 더 어려운 관련 주제로 올라간다.
+      예) 인덱스를 정확히 설명함 → "복합 인덱스에서 컬럼 순서는 왜 중요하죠?"</dd>
+    <dt>4. 넘어가기</dt>
+    <dd>확인할 것도, 더 올라갈 이유도 없다. 설명 없이 다음 질문으로 간다.</dd>
+  </dl>
+  <div class="muted" style="margin-top:8px">2와 3이 헷갈리면: 방금 답변 속 문장을 다시 묻고 싶으면 2, 답변은 됐고 다음 단계를 묻고 싶으면 3.</div>
+</details>`;
+
 const isJudge = () => tab === "disagreement" || tab === "sample";
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -187,6 +211,7 @@ function render() {
       ${allDone ? `<div style="margin-top:8px"><button class="primary" onclick="lockActions()">다음 행동 잠그고 판정 검수 시작</button></div>` : ""}</div>` : ""}
     ${itemView(it, judge ? it.target : null)}
     <div class="card"><div class="muted">${hint}</div><div class="opts">${opts}</div>
+      ${judge ? "" : ACTION_GUIDE}
       ${judge ? `<div class="label" style="margin-top:10px">메모 (선택)</div><textarea id="note">${esc(it.decided ? it.decided.note : "")}</textarea>` : ""}
     </div>`;
 }
