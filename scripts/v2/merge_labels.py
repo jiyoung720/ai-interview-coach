@@ -10,6 +10,8 @@
 import argparse
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from rag.v2.labeling import (
     BLIND_MAP, CODEX_LABELS, FINAL_LABELS, HUMAN_LABELS, REVIEW_QUEUE, CodexLabels, LabelingError,
     build_review_queue, check_run, empty_human, finalize, load_dataset, read_json, self_agreement, write_json,
@@ -59,7 +61,13 @@ def run(root: Path, do_finalize: bool) -> int:
     if human and (human["actions"] or human["judgements"] or human["relabel"]):
         raise LabelingError("이 실행에서 사람 작업이 이미 시작돼 대기열을 다시 만들지 않습니다. "
                             "새로 시작하려면 export_for_codex --new-run.")
-    queue = build_review_queue(ds, blind, CodexLabels.model_validate(codex_raw))
+    try:
+        codex = CodexLabels.model_validate(codex_raw)
+    except ValidationError as error:
+        missing = [".".join(map(str, e["loc"])) for e in error.errors()]
+        raise LabelingError(f"codex_labels.json 형식 오류 (빠지거나 잘못된 필드: {missing}). "
+                            "run_id는 꾸러미 blind.json의 run_id와 같아야 합니다.")
+    queue = build_review_queue(ds, blind, codex)
     write_json(root / REVIEW_QUEUE, queue)
     c = queue["counts"]
     reasons = {}
